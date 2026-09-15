@@ -1,6 +1,6 @@
 // Consola Cisco IOS: modos user/priv/config/if/vlan/router, shows, ping y consola de PC
 import { validIp, parseMask, maskLen, netOf, macOf, pad, isSwitch, M0 } from './utils.js'
-import { recompute, linkOf, otherSide, linkState, physUp, portUp, pcUp, sviUp, routesOf, primaryIp, labVlans, sameL2, pingSim, deliverTo, ospfNeighbors, linkBlocked, carriedVlans } from './engine.js'
+import { recompute, linkOf, otherSide, linkState, physUp, portUp, pcUp, sviUp, routesOf, primaryIp, labVlans, sameL2, pingSim, deliverTo, ospfNeighbors, linkBlocked, carriedVlans, aclAddrText, aclAppliesOn } from './engine.js'
 
 export function cliS(ctx, devId) {
   return ctx.sessions[devId] || (ctx.sessions[devId] = { mode: 'user', ifc: null, vid: null, out: [], hist: [], hi: -1 })
@@ -57,6 +57,15 @@ function parseVlanList(str, allVlans) {
   return out
 }
 
+const ACL_PROTOS = ['ip', 'icmp', 'tcp', 'udp']
+function parseAclAddr(toks, i) {
+  const t = toks[i]
+  if (t === 'any') return { match: 'any', next: i + 1 }
+  if (t === 'host' && validIp(toks[i + 1])) return { match: 'host:' + toks[i + 1], next: i + 2 }
+  if (validIp(t) && validIp(toks[i + 1])) return { match: t + '/' + toks[i + 1], next: i + 2 }
+  return null
+}
+
 function portNote(ctx, devId, port, o) {
   const l = linkOf(ctx.lab, devId, port)
   if (!l) return
@@ -84,7 +93,8 @@ function showIpIntBrief(lab, d, o) {
     if (i.kind === 'svi') proto = sviUp(d, name) ? 'up' : 'down'
     else if (i.kind === 'routed') proto = portUp(lab, d.id, name) ? 'up' : 'down'
     else proto = physUp(lab, d.id, name) ? 'up' : 'down'
-    const st = i.status === 'up' ? 'up' : 'administratively down'
+    const err = isSwitch(d) && i.kind === 'port' && i.security && i.security.state === 'err-disabled'
+    const st = i.status !== 'up' ? 'administratively down' : (err ? 'err-disabled' : 'up')
     o(pad(name, 22) + pad(i.ip || 'unassigned', 17) + pad('YES', 4) + pad('manual', 8) + pad(st, 22) + proto, proto === 'up' ? 'ok' : '')
   }
 }
@@ -187,6 +197,33 @@ function showArp(lab, d, o) {
   if (!uniq.length) o('(tabla vacía: no hay vecinos L2 alcanzables)', 'dim')
 }
 
+function showAccessLists(lab, d, o) {
+  const acls = d.acls || {}
+  const names = Object.keys(acls)
+  if (!names.length) { o('(no hay listas de control de acceso configuradas)', 'dim'); return }
+  for (const name of names) {
+    const where = aclAppliesOn(d, name)
+    o('Extended IP access list ' + name + (where.length ? '  [aplicada en ' + where.join(', ') + ']' : '  (no aplicada)'), 'hdr')
+    let seq = 10
+    for (const e of acls[name]) {
+      o('    ' + seq + ' ' + e.action + ' ' + (e.proto || 'ip') + ' ' + aclAddrText(e.src) + ' ' + aclAddrText(e.dst))
+      seq += 10
+    }
+    o('    (deny implícito al final de la lista)', 'dim')
+  }
+}
+
+function showPortSecurity(lab, d, o) {
+  if (!isSwitch(d)) { o('% Comando disponible solo en switches.', 'err'); return }
+  const rows = Object.entries(d.interfaces).filter(([, i]) => i.kind === 'port' && i.security)
+  if (!rows.length) { o('(no hay puertos con port-security configurado)', 'dim'); return }
+  o(pad('Port', 10) + pad('Max', 6) + pad('Current', 9) + pad('Violation', 12) + 'Status', 'hdr')
+  for (const [p, i] of rows) {
+    const st = i.security.state === 'err-disabled' ? 'Secure-shutdown' : (i.status === 'up' ? 'Secure-up' : 'Disabled')
+    o(pad(p, 10) + pad(i.security.max || 1, 6) + pad(1, 9) + pad(i.security.violation || 'shutdown', 12) + st, st === 'Secure-shutdown' ? 'err' : 'ok')
+  }
+}
+
 function showRun(lab, d, o) {
   o('!', 'dim')
   o('hostname ' + d.name, 'hdr')
@@ -218,8 +255,15 @@ function showRun(lab, d, o) {
       }
       if (d.stp && d.stp[name] === 'blocking') o(' ! Puerto bloqueado por STP (BLOCKING)', 'err')
       if (d.portfast && d.portfast[name]) o(' spanning-tree portfast')
-    }
-    if (i.ip) o(' ip address ' + i.ip + ' ' + i.mask)
+      if (i.security) {
+        o(' switchport port-security')
+        if (i.security.max) o(' switchport port-security maximum ' + i.security.max)
+        if (i.security.violation) o(' switchport port-security violation ' + i.security.violation)
+        if (i.security.mac) o(' switchport port-security mac-address ' + i.security.mac)
+        if (i.security.state === 'err-disabled') o(' ! Puerto en err-disabled por violación de port-security', 'err')
+      }
+      for (const a of (d.aclApply || [])) if (a.iface === name) o(' ip access-group ' + a.name + ' ' + a.dir)
+    }    if (i.ip) o(' ip address ' + i.ip + ' ' + i.mask)
     if (i.status === 'down') o(' shutdown', 'err')
     else if (i.kind !== 'port') o(' no shutdown')
     o('!', 'dim')
@@ -230,6 +274,9 @@ function showRun(lab, d, o) {
     o('!', 'dim')
   }
   for (const r of d.staticRoutes || []) o('ip route ' + r.net + ' ' + r.mask + ' ' + r.via)
+  for (const [aname, entries] of Object.entries(d.acls || {})) {
+    for (const e of entries) o('access-list ' + aname + ' ' + e.action + ' ' + (e.proto || 'ip') + ' ' + aclAddrText(e.src) + ' ' + aclAddrText(e.dst))
+  }
   o('!', 'dim')
   o('end', 'dim')
 }
@@ -256,12 +303,15 @@ function showIpProtocols(lab, d, o) {
 
 function showInterfaces(lab, d, o, argstr) {
   const line = (name, i) => {
+    const errDis = isSwitch(d) && i.kind === 'port' && i.security && i.security.state === 'err-disabled'
+    const adminState = i.status === 'up' ? (errDis ? 'err-disabled' : 'up') : 'administratively down'
     let proto = i.kind === 'svi' ? (sviUp(d, name) ? 'up' : 'down') : i.kind === 'routed' ? (portUp(lab, d.id, name) ? 'up' : 'down') : (physUp(lab, d.id, name) ? 'up' : 'down')
-    o(name + ' is ' + (i.status === 'up' ? 'up' : 'administratively down') + ', line protocol is ' + proto, proto === 'up' ? 'ok' : 'err')
+    o(name + ' is ' + adminState + ', line protocol is ' + proto, proto === 'up' ? 'ok' : 'err')
     if (i.desc) o('  Description: ' + i.desc, 'dim')
     if (i.kind === 'port') {
       o('  Cap: ' + i.mode + ', Access VLAN: ' + (i.accessVlan != null ? i.accessVlan : '-') + ', Trunk VLANs: ' + (i.allowed.length ? i.allowed.join(',') : '-'))
       if (d.stp && d.stp[name]) o('  STP state: ' + d.stp[name].toUpperCase() + ((d.portfast && d.portfast[name]) ? ' (portfast)' : ''))
+      if (i.security) o('  Port-security: enabled, violation ' + (i.security.violation || 'shutdown') + (errDis ? ' — ERR-DISABLED' : ''), errDis ? 'err' : '')
     }
     if (i.ip) o('  Internet address is ' + i.ip + '/' + maskLen(i.mask))
     o('  Hardware addr: ' + macOf(d.id + name), 'dim')
@@ -306,6 +356,8 @@ function showCmd(ctx, d, o, toks) {
   if (sub === 'interfaces' && toks[2] === 'trunk') return showTrunk(lab, d, o)
   if (sub === 'interfaces') return showInterfaces(lab, d, o, toks.slice(2).join(' '))
   if (sub === 'spanning-tree') return showStp(lab, d, o)
+  if (sub === 'access-lists') return showAccessLists(lab, d, o)
+  if (sub === 'port-security') return showPortSecurity(lab, d, o)
   if (sub === 'running-config' || sub === 'run') return showRun(lab, d, o)
   if (sub === 'version') {
     o('Cisco IOS Software, Simulator Image (CCNA-LAB), Version 15.2(4)M11', 'hdr')
@@ -318,7 +370,7 @@ function showCmd(ctx, d, o, toks) {
 }
 
 function helpFor(d, c, o) {
-  const common = ['show ip interface brief', 'show ip route', 'show interfaces [X]', 'show running-config', 'show version', 'ping <ip>', 'exit']
+  const common = ['show ip interface brief', 'show ip route', 'show interfaces [X]', 'show running-config', 'show access-lists', 'show port-security', 'show version', 'ping <ip>', 'exit']
   if (d.type === 'pc') {
     o('Comandos disponibles (consola de PC):', 'hdr')
     o('  ipconfig                 Ver IP, máscara y gateway')
@@ -331,8 +383,8 @@ function helpFor(d, c, o) {
   o('Comandos disponibles en modo ' + c.mode + ':', 'hdr')
   if (c.mode === 'user') o('  enable | ping <ip> | show ... | exit')
   if (c.mode === 'priv') o('  configure terminal | disable | ping <ip> | show ... | exit')
-  if (c.mode === 'config') o('  interface <nombre> | vlan <id> | ip route <red> <máscara> <via> | router ospf 1 | hostname <X> | no ip route ... | end | exit')
-  if (c.mode === 'if') o('  ip address <ip> <máscara> | no ip address | shutdown | no shutdown | switchport mode access|trunk | switchport access vlan <id> | switchport trunk allowed vlan <lista|all|add X> | spanning-tree portfast [trunk] | description <txt> | end | exit')
+  if (c.mode === 'config') o('  interface <nombre> | vlan <id> | ip route <red> <máscara> <via> | router ospf 1 | access-list <n> <permit|deny> <proto> <origen> <destino> | hostname <X> | no <cmd> ... | end | exit')
+  if (c.mode === 'if') o('  ip address <ip> <máscara> | no ip address | shutdown | no shutdown | switchport mode access|trunk | switchport access vlan <id> | switchport trunk allowed vlan <lista|all|add X> | switchport port-security [maximum N|violation M|mac-address sticky] | ip access-group <acl> <in|out> | spanning-tree portfast [trunk] | description <txt> | end | exit')
   if (c.mode === 'vlan') o('  name <nombre> | exit | end')
   if (c.mode === 'router') o('  network <red> <wildcard> area 0 | no network <red> | exit | end')
   o('  ' + common.join(' | '), 'dim')
@@ -453,6 +505,32 @@ export function execCommand(ctx, devId, line) {
       else o('% VLAN ' + vid + ' no existe.', 'err')
       return
     }
+    if (cmd === 'access-list') {
+      const name = toks[1]
+      const action = (toks[2] || '').toLowerCase()
+      const proto = (toks[3] || '').toLowerCase()
+      if (!name || (action !== 'permit' && action !== 'deny') || !ACL_PROTOS.includes(proto)) {
+        o('% Uso: access-list <nombre> <permit|deny> <ip|icmp|tcp|udp> <origen> <destino>', 'err'); recompute(lab); return
+      }
+      const src = parseAclAddr(toks, 4)
+      const dst = src && parseAclAddr(toks, src.next)
+      if (!src || !dst) {
+        o('% Origen/destino inválidos. Usa "any", "host <ip>" o "<red> <wildcard>".', 'err'); recompute(lab); return
+      }
+      d.acls = d.acls || {}
+      d.acls[name] = (d.acls[name] || []).concat([{ action, proto, src: src.match, dst: dst.match }])
+      o('Entrada agregada a la ACL ' + name + ': ' + action + ' ' + proto + ' ' + aclAddrText(src.match) + ' ' + aclAddrText(dst.match), 'ok')
+      recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'access-list') {
+      const name = toks[2]
+      if (name && d.acls && d.acls[name]) {
+        delete d.acls[name]
+        d.aclApply = (d.aclApply || []).filter((a) => a.name !== name)
+        o('ACL ' + name + ' eliminada.', 'dim')
+      } else o('% La ACL ' + (name || '') + ' no existe.', 'err')
+      recompute(lab); return
+    }
     if (cmd === 'ip' && toks[1] === 'route') {
       const [net, mask, via] = toks.slice(2)
       if (!net || !mask || !via || !validIp(net) || !validIp(mask) || !validIp(via)) { o('% Uso: ip route <red> <máscara> <siguiente-salto>', 'err'); recompute(lab); return }
@@ -528,7 +606,29 @@ export function execCommand(ctx, devId, line) {
     }
     if (cmd === 'no' && toks[1] === 'ip' && toks[2] === 'address') { i.ip = null; i.mask = null; recompute(lab); return }
     if (cmd === 'shutdown' || cmd === 'shut') { i.status = 'down'; portNote(ctx, d.id, c.ifc, o); recompute(lab); return }
-    if (cmd === 'no' && (toks[1] === 'shutdown' || toks[1] === 'shut')) { i.status = 'up'; portNote(ctx, d.id, c.ifc, o); recompute(lab); return }
+    if (cmd === 'no' && (toks[1] === 'shutdown' || toks[1] === 'shut')) {
+      i.status = 'up'
+      if (i.security && i.security.state === 'err-disabled') { i.security.state = 'secure-up'; o('✔ Puerto recuperado del estado err-disabled.', 'ok') }
+      portNote(ctx, d.id, c.ifc, o); recompute(lab); return
+    }
+    if (cmd === 'ip' && toks[1] === 'access-group') {
+      const name = toks[2]
+      const dir = (toks[3] || '').toLowerCase()
+      if (!name || (dir !== 'in' && dir !== 'out')) { o('% Uso: ip access-group <nombre> <in|out>', 'err'); recompute(lab); return }
+      d.aclApply = (d.aclApply || []).filter((a) => !(a.iface === c.ifc && a.dir === dir))
+      d.aclApply.push({ iface: c.ifc, dir, name })
+      o('ACL ' + name + ' aplicada en ' + c.ifc + ' ' + dir + '.', 'ok')
+      portNote(ctx, d.id, c.ifc, o); recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'ip' && toks[2] === 'access-group') {
+      const name = toks[3]
+      const dir = (toks[4] || '').toLowerCase()
+      const before = (d.aclApply || []).length
+      d.aclApply = (d.aclApply || []).filter((a) => !(a.iface === c.ifc && (!name || a.name === name) && (!dir || a.dir === dir)))
+      if ((d.aclApply || []).length < before) { o('ACL removida de ' + c.ifc + '.', 'dim'); portNote(ctx, d.id, c.ifc, o) }
+      else o('% No hay una ACL aplicada que coincida.', 'err')
+      recompute(lab); return
+    }
     if (cmd === 'switchport') {
       if (!isSwitch(d) || i.kind !== 'port') { o('% Comando solo válido en puertos L2 de switches.', 'err'); recompute(lab); return }
       if (toks[1] === 'mode' && (toks[2] === 'access' || toks[2] === 'trunk')) {
@@ -558,7 +658,28 @@ export function execCommand(ctx, devId, line) {
         i.mode = 'trunk'; i.allowed = Array.from(new Set(list)).sort((a, b) => a - b)
         portNote(ctx, d.id, c.ifc, o); recompute(lab); return
       }
+      if (toks[1] === 'port-security') {
+        i.security = i.security || { enabled: true, max: 1, violation: 'shutdown', state: 'secure-up' }
+        if (toks[2] === 'maximum') {
+          const n = +toks[3]
+          if (!n || n < 1) { o('% Uso: switchport port-security maximum <n>', 'err'); recompute(lab); return }
+          i.security.max = n
+        } else if (toks[2] === 'mac-address' && toks[3] === 'sticky') {
+          i.security.mac = 'sticky'
+        } else if (toks[2] === 'violation' && ['protect', 'restrict', 'shutdown'].includes(toks[3])) {
+          i.security.violation = toks[3]
+        } else if (toks[2]) {
+          o("% Invalid input detected at '^' marker.", 'err'); recompute(lab); return
+        }
+        o('Port-security configurado en ' + c.ifc + '.', 'ok')
+        portNote(ctx, d.id, c.ifc, o); recompute(lab); return
+      }
       o("% Invalid input detected at '^' marker.", 'err'); recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'switchport' && toks[2] === 'port-security') {
+      if (i.security) { delete i.security; o('Port-security deshabilitado en ' + c.ifc + '.', 'dim') }
+      else o('% El puerto no tiene port-security configurado.', 'err')
+      portNote(ctx, d.id, c.ifc, o); recompute(lab); return
     }
     if (cmd === 'no' && toks[1] === 'switchport' && toks[2] === 'access') {
       if (i.kind === 'port') { i.accessVlan = 1; portNote(ctx, d.id, c.ifc, o); recompute(lab) }

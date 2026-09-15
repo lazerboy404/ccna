@@ -40,6 +40,12 @@ export const SCENARIOS = [
     story: s => '«Contabilidad (planta nueva, switch recién agregado) perdió TODA su red de golpe. Y aparte, el de Soporte dice que su PC tiene IP correcta pero no alcanza nada. Ventas y Admin trabajan bien.» — Gerencia' },
   { key: 'a-lunes-negro', diff: 'Avanzado', title: 'Lunes negro', design: null, sw3: null, faultKeys: ['shut-pc2', 'wrong-svi', 'trunk-allowed'],
     story: s => '«Tres tickets el mismo lunes: (1) una PC de Ventas sin enlace, (2) todo Ventas sin alcanzar su gateway, (3) Soporte aislado del resto. Admin opera sin problema. Prioridad crítica.» — Mesa de ayuda' },
+  { key: 'i-acl', diff: 'Intermedio', title: 'La regla que sobra', design: null, sw3: null, faultKeys: ['acl-block'],
+    story: s => '«Soporte no tiene internet desde que "endurecieron" la seguridad, pero Ventas y Admin navegan normal y la red local de Soporte funciona. El enlace está en verde: parece un filtro, no una falla física.» — Mesa de ayuda' },
+  { key: 'i-portsecurity', diff: 'Intermedio', title: 'El puerto castigado', design: null, sw3: null, faultKeys: ['port-security'],
+    story: s => '«La PC de Soporte amaneció sin cable según Windows, pero el cable está conectado. Ayer movieron equipos de lugar y el switch muestra el puerto en un estado raro.» — Soporte de TI' },
+  { key: 'a-seguridad', diff: 'Avanzado', title: 'Candados mal puestos', design: null, sw3: null, faultKeys: ['acl-block', 'port-security'],
+    story: s => '«El equipo de seguridad aplicó políticas nuevas y Soporte quedó aislado por dos frentes: su PC sin enlace y sin salida a Internet, mientras Ventas y Admin trabajan. Diagnostica por capas.» — Gerencia' },
   { key: 'sorpresa', diff: 'Mixto', title: 'Incidente sin clasificar', design: null, sw3: null, faultKeys: null,
     story: s => '«La red "no sirve bien" — dice el cliente. Hay varios reportes sueltos y nadie sabe por dónde empezar. Lee los síntomas del ticket y diagnostica desde la capa física hacia arriba.» — Mesa de ayuda' },
 ]
@@ -326,6 +332,30 @@ export function makeFaults(s, rnd) {
       : [{ devId: 'R1', cmds: ['enable', 'configure terminal', 'router ospf 1',
           'network ' + nets.transit.net + ' 0.0.0.255 area 0', 'end'] }],
     apply: (d) => { d[ospfSide].ospf = { enabled: false, process: 1, networks: [] } } })
+
+  F.push({ key: 'acl-block', design: null, title: 'ACL que bloquea a una subred', category: 'Seguridad (ACL)',
+    devId: 'R1', port: 'Gi0/1',
+    symptom: 'Tras un cambio de seguridad, ' + n.pc3 + ' perdió toda salida a Internet y el acceso a la matriz, aunque su red local funciona; Admin y Ventas navegan sin problema.',
+    hints: ['Una ACL aplicada en una interfaz descarta tráfico por política, sin que el enlace se caiga: el paquete simplemente no pasa.',
+      'En ' + n.r1 + ' ejecuta show access-lists y show running-config: hay una ACL aplicada en Gi0/1 (entrada) que niega ' + nets.soporte.net + '.'],
+    solution: [{ devId: 'R1', cmds: ['enable', 'configure terminal', 'interface Gi0/1', 'no ip access-group 110 in', 'end'] }],
+    apply: (d) => {
+      d.R1.acls = d.R1.acls || {}
+      d.R1.acls['110'] = [
+        { action: 'deny', proto: 'ip', src: nets.soporte.net + '/0.0.0.255', dst: 'any' },
+        { action: 'permit', proto: 'ip', src: 'any', dst: 'any' },
+      ]
+      d.R1.aclApply = d.R1.aclApply || []
+      d.R1.aclApply.push({ iface: 'Gi0/1', dir: 'in', name: '110' })
+    } })
+
+  F.push({ key: 'port-security', design: null, title: 'Puerto en err-disabled por port-security', category: 'Seguridad (port security)',
+    devId: 'SW2', port: 'Gi0/3',
+    symptom: n.pc3 + ' amaneció sin enlace: el switch detectó una MAC no autorizada en su puerto y lo deshabilitó automáticamente por seguridad.',
+    hints: ['El puerto no quedó apagado por administración: Port Security lo llevó a estado err-disabled tras una violación.',
+      'En ' + n.sw2 + ' ejecuta show port-security y show interfaces Gi0/3: verás "Secure-shutdown". Recupera el puerto con shutdown y luego no shutdown.'],
+    solution: [{ devId: 'SW2', cmds: ['enable', 'configure terminal', 'interface Gi0/3', 'shutdown', 'no shutdown', 'end'] }],
+    apply: (d) => { d.SW2.interfaces['Gi0/3'].security = { enabled: true, max: 1, violation: 'shutdown', state: 'err-disabled' } } })
 
   if (s.topo.sw3) {
     const side3 = rnd() < 0.5 ? { dev: 'SW1', port: 'Gi0/4' } : { dev: 'SW3', port: 'Gi0/1' }

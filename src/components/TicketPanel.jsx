@@ -250,9 +250,12 @@ export default function TicketPanel() {
             <b>spanning-tree portfast [trunk]</b> (destraba puerto STP)<br />
             <b>ip route 10.0.20.0 255.255.255.0 10.0.99.2</b> · <b>ip route 0.0.0.0 0.0.0.0 x.x.x.x</b><br />
             <b>router ospf 1</b> → <b>network 10.0.10.0 0.0.0.255 area 0</b><br />
+            <b>access-list 110 deny|permit ip &lt;origen&gt; &lt;destino&gt;</b> · <b>ip access-group 110 in|out</b><br />
+            <b>switchport port-security [maximum N] [violation restrict|shutdown]</b><br />
             <b>show ip interface brief</b> · <b>show ip route</b> · <b>show vlan brief</b><br />
             <b>show interfaces trunk</b> · <b>show spanning-tree brief</b> · <b>show ip arp</b><br />
-            <b>show running-config</b> · <b>show ip protocols</b> · <b>ping &lt;ip&gt;</b> · <b>hostname X</b><br />
+            <b>show access-lists</b> · <b>show port-security</b> · <b>show ip protocols</b><br />
+            <b>show running-config</b> · <b>ping &lt;ip&gt;</b> · <b>hostname X</b><br />
             En PCs: <b>ipconfig</b> · <b>ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt;</b> · <b>ping &lt;ip&gt;</b>
           </div>
         </details>
