@@ -455,13 +455,28 @@ export function canConnect(lab, a, b) {
   return sa && sb
 }
 
-export function connectPorts(lab, a, b) {
-  if (!canConnect(lab, a, b)) return { ok: false, reason: 'Esos dispositivos no se pueden cablear entre sí.' }
+export function cableKindOf(devA, devB) {
+  const aPc = devA.type === 'pc', bPc = devB.type === 'pc'
+  if (aPc && bPc) return null
+  if (aPc || bPc) return 'directo'
+  return 'cruzado'
+}
+
+export const CABLE_LABEL = { auto: 'Automático', directo: 'Directo', cruzado: 'Cruzado' }
+
+export function connectPorts(lab, a, b, type) {
+  if (!canConnect(lab, a, b)) return { ok: false, reason: 'No se pueden cablear esos dispositivos (PC ↔ PC no es válido).' }
   if (!freePorts(lab, a.dev).includes(a.port) || !freePorts(lab, b.dev).includes(b.port)) return { ok: false, reason: 'Alguno de los puertos ya está en uso.' }
-  const ea = lab.devices[a.dev].type === 'pc' ? { dev: a.dev } : { dev: a.dev, port: a.port }
-  const eb = lab.devices[b.dev].type === 'pc' ? { dev: b.dev } : { dev: b.dev, port: b.port }
+  const da = lab.devices[a.dev], db = lab.devices[b.dev]
+  const need = cableKindOf(da, db)
+  const t = (!type || type === 'auto') ? need : type
+  if (t !== need) {
+    return { ok: false, reason: 'Cable incorrecto: entre ' + da.name + ' y ' + db.name + ' necesitas cable ' + CABLE_LABEL[need].toLowerCase() + ' (' + need + ').' }
+  }
+  const ea = da.type === 'pc' ? { dev: a.dev } : { dev: a.dev, port: a.port }
+  const eb = db.type === 'pc' ? { dev: b.dev } : { dev: b.dev, port: b.port }
   const id = 'LX' + (lab.links.length + 1) + '-' + Math.floor(Math.random() * 1000)
-  lab.links.push({ id, a: ea, b: eb, kind: 'eth', label: 'Cable manual' })
+  lab.links.push({ id, a: ea, b: eb, kind: 'eth', label: 'Cable ' + t })
   recompute(lab)
-  return { ok: true, id }
+  return { ok: true, id, label: 'Cable ' + t + ': ' + da.name + ' ↔ ' + db.name }
 }

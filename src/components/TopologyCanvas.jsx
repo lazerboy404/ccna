@@ -1,7 +1,8 @@
-// Mapa interactivo de red: SVG con enlaces de color dinámico y modo cableado (clic en puertos)
+// Mapa interactivo: SVG con enlaces de estado dinámico, equipos arrastrables y cableado
+// estilo Packet Tracer (elige tipo de cable → clic al equipo → ventana de puertos disponibles).
+import { useEffect, useRef, useState } from 'react'
 import { useNetwork } from '../context/NetworkContext.jsx'
-import { positionsFor, linkState, deviceHealth, freePorts } from '../lib/engine.js'
-import { TOPO_ORDER } from '../lib/labGenerator.js'
+import { linkState, deviceHealth, freePorts, cableKindOf, CABLE_LABEL } from '../lib/engine.js'
 import { typeLabel } from './icons.jsx'
 
 function Icon({ type }) {
@@ -57,24 +58,107 @@ const LED_COLOR = { ok: '#22c55e', warn: '#f59e0b', down: '#ef4444' }
 const LINK_CLASS = { ok: 'lk-ok', down: 'lk-down', stp: 'lk-stp', mis: 'lk-mis' }
 
 export default function TopologyCanvas() {
-  const { lab, active, setActive, cabling, cabSrc, pickPort, cancelCab } = useNetwork()
-  const order = (lab.order && lab.order.length) ? lab.order : TOPO_ORDER.filter((id) => !!lab.devices[id])
-  const pos = lab.positions || positionsFor(lab.spec)
-  const st = (l) => linkState(lab, l)
+  const { lab, active, setActive, cabling, connect } = useNetwork()
+  const [posMap, setPosMap] = useState(() => Object.assign({}, lab.positions))
+  const [cableType, setCableType] = useState('auto')
+  const [src, setSrc] = useState(null)
+  const [popup, setPopup] = useState(null)
+  const svgRef = useRef(null)
+  const wrapRef = useRef(null)
+  const dragRef = useRef(null)
+
+  useEffect(() => { setPosMap(Object.assign({}, lab.positions)); setSrc(null); setPopup(null) }, [lab])
+  useEffect(() => { if (!cabling) { setSrc(null); setPopup(null) } }, [cabling])
+
+  const order = lab.order || Object.keys(lab.devices)
+  const scale = () => { const el = svgRef.current; return el ? el.getBoundingClientRect().width / 960 : 1 }
+  const toLocal = (cx, cy) => { const r = svgRef.current.getBoundingClientRect(); const s = r.width / 960; return { x: (cx - r.left) / s, y: (cy - r.top) / s } }
+
+  const openPopup = (devId) => {
+    const wrap = wrapRef.current.getBoundingClientRect()
+    const r = svgRef.current.getBoundingClientRect()
+    const s = r.width / 960
+    const p = posMap[devId]
+    const left = Math.max(4, Math.min((r.left - wrap.left) + p.x * s + 44, wrap.width - 236))
+    const top = Math.max(4, Math.min((r.top - wrap.top) + p.y * s - 8, wrap.height - 40))
+    setPopup({ dev: devId, left, top })
+  }
+
+  const handleClick = (devId) => {
+    if (!cabling) { setActive(devId); return }
+    if (lab.devices[devId].type === 'isp') return
+    openPopup(devId)
+  }
+
+  const onPointerDown = (devId, e) => {
+    if (e.button !== 0) return
+    const p = posMap[devId]
+    dragRef.current = { id: devId, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false }
+    if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
+    e.stopPropagation()
+  }
+  const onPointerMove = (e) => {
+    const d = dragRef.current
+    if (!d) return
+    if (Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) > 4) d.moved = true
+    const s = scale()
+    setPosMap((m) => Object.assign({}, m, { [d.id]: { x: d.ox + (e.clientX - d.sx) / s, y: d.oy + (e.clientY - d.sy) / s } }))
+  }
+  const onPointerUp = (e) => {
+    const d = dragRef.current
+    dragRef.current = null
+    if (!d) return
+    if (d.moved) {
+      lab.positions = lab.positions || {}
+      lab.positions[d.id] = posMap[d.id]
+      return
+    }
+    handleClick(d.id)
+  }
+
+  const pairCompatible = (devA, devB) => {
+    const need = cableKindOf(lab.devices[devA], lab.devices[devB])
+    if (!need) return false
+    if (!cableType || cableType === 'auto') return true
+    return cableType === need
+  }
+  function needLabel(devA, devB) {
+    const need = cableKindOf(lab.devices[devA], lab.devices[devB])
+    return need ? CABLE_LABEL[need].toLowerCase() : '—'
+  }
+  const choosePort = (port) => {
+    if (!popup) return
+    const devId = popup.dev
+    if (!src) { setSrc({ dev: devId, port }); setPopup(null); return }
+    if (src.dev === devId) { setSrc(null); setPopup(null); return }
+    if (connect(src, { dev: devId, port }, cableType)) { setSrc(null); setPopup(null) }
+  }
+
+  const portsForPopup = () => (popup ? freePorts(lab, popup.dev) : [])
+  const srcDev = src ? lab.devices[src.dev] : null
+
   return (
-    <div className="bg-sim-panel border border-sim-border rounded-2xl p-2 shadow-lg">
+    <div ref={wrapRef} className="relative bg-sim-panel border border-sim-border rounded-2xl p-2 shadow-lg">
       {cabling && (
         <div className="mx-2 mt-2 mb-1 rounded-lg border border-violet-700 bg-[#1a1035] px-3 py-2 text-[12px] text-[#e9dcff] flex items-center gap-2 flex-wrap">
-          <span>🔌 <b>Modo cableado</b> — {cabSrc
-            ? <>inicio en <b>{lab.devices[cabSrc.dev].name} {cabSrc.port}</b>: haz clic en un puerto libre del otro dispositivo.</>
-            : 'haz clic en un círculo de puerto para iniciar un cable.'}</span>
-          {cabSrc && <button onClick={cancelCab} className="ml-auto rounded-md border border-violet-700 bg-[#2a1b4d] px-2 py-0.5 text-[11px] font-semibold">Cancelar</button>}
+          <span className="font-semibold">🔌 Tipo de cable:</span>
+          {['auto', 'directo', 'cruzado'].map((t) => (
+            <button key={t} onClick={() => setCableType(t)}
+              className={'rounded-md border px-2 py-0.5 text-[11px] font-semibold ' + (cableType === t ? 'border-violet-400 bg-violet-700 text-white' : 'border-violet-800 bg-[#241746] text-[#d9c9ff] hover:brightness-125')}>
+              {CABLE_LABEL[t]}
+            </button>
+          ))}
+          <span className="text-[11px] text-[#b9a8e6]">
+            {src ? <>Origen <b>{srcDev.name} {src.port}</b> — ahora haz clic en el otro equipo y elige su puerto.</> : 'Haz clic en un equipo y elige el puerto en la ventana.'}
+          </span>
+          {src && <button onClick={() => setSrc(null)} className="ml-auto rounded-md border border-violet-700 bg-[#2a1b4d] px-2 py-0.5 text-[11px] font-semibold">Cancelar</button>}
         </div>
       )}
-      <svg id="topo" viewBox="0 0 960 540" className="w-full h-auto block rounded-xl topo-bg">
+      <svg ref={svgRef} id="topo" viewBox="0 0 960 540" className="w-full h-auto block rounded-xl topo-bg" onClick={() => setPopup(null)}>
         {lab.links.map((l) => {
-          const pa = pos[l.a.dev], pb = pos[l.b.dev]
-          const state = st(l)
+          const pa = posMap[l.a.dev], pb = posMap[l.b.dev]
+          if (!pa || !pb) return null
+          const state = linkState(lab, l)
           const dA = lab.devices[l.a.dev], dB = lab.devices[l.b.dev]
           const detail = state === 'down' ? 'CAÍDO — revisa shutdown/enlace físico'
             : state === 'stp' ? 'BLOQUEADO por STP'
@@ -93,44 +177,66 @@ export default function TopologyCanvas() {
         })}
         {order.map((id) => {
           const d = lab.devices[id]
-          const p = pos[id]
+          const p = posMap[id]
+          if (!p) return null
           const h = deviceHealth(lab, id)
           const sub = d.type === 'pc' ? d.pc.ip : typeLabel(d.type)
+          const isSrc = src && src.dev === id
           return (
-            <g key={id} className={'devg' + (active === id ? ' active' : '')} transform={'translate(' + p.x + ',' + p.y + ')'} onClick={() => { if (!cabling) setActive(id) }}>
-              <circle cx="0" cy="0" r="40" fill="none" stroke="#22d3ee" strokeWidth="1.5" className="halo" strokeDasharray="4 4" />
+            <g key={id}
+              className={'devg' + (active === id ? ' active' : '') + (cabling ? ' movable' : '')}
+              transform={'translate(' + p.x + ',' + p.y + ')'}
+              onPointerDown={(e) => onPointerDown(id, e)}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onClick={(e) => e.stopPropagation()}>
+              <circle cx="0" cy="0" r="40" fill="none" stroke={isSrc ? '#a78bfa' : '#22d3ee'} strokeWidth={isSrc ? 2.5 : 1.5} className="halo" strokeDasharray="4 4" />
               <g className="iconbg"><Icon type={d.type} /></g>
               <text x="0" y="38" className="devlabel" fontSize="11.5" fontWeight="600" textAnchor="middle" fill="#cbd9ee">{d.name}</text>
               <text x="0" y="50" className="devsub" fontSize="10" textAnchor="middle" fill="#6c84a8">{sub}</text>
               <circle cx="26" cy="-22" r="4.5" fill={LED_COLOR[h]} />
-              <title>{d.name + ' — ' + d.role + (d.type !== 'isp' ? '\nClic para abrir la consola' : '\n(No gestionable)') + (h === 'down' ? '\n⚠ Estado: FALLA' : h === 'warn' ? '\n⚠ Estado: DEGRADADO' : '\n✔ Estado: OK')}</title>
+              <title>{d.name + ' — ' + d.role + '\n' + (cabling ? 'Clic: elegir puerto · Arrastra para mover' : 'Clic para abrir la consola · Arrastra para mover') + (h === 'down' ? '\n⚠ Estado: FALLA' : h === 'warn' ? '\n⚠ Estado: DEGRADADO' : '\n✔ Estado: OK')}</title>
             </g>
           )
         })}
-        {cabling && order.map((id) => {
-          const fps = freePorts(lab, id)
-          if (!fps.length) return null
-          const p = pos[id]
-          const shown = fps.slice(0, 8)
-          const x0 = p.x - ((shown.length - 1) * 11)
-          return shown.map((port, j) => {
-            const x = x0 + j * 22
-            const y = p.y + 63
-            const sel = cabSrc && cabSrc.dev === id && cabSrc.port === port
-            return (
-              <g key={id + ':' + port} className="portdot" onClick={(e) => { e.stopPropagation(); pickPort(id, port) }}>
-                <circle cx={x} cy={y} r="7.5" fill={sel ? '#a78bfa' : '#0b2233'} stroke={sel ? '#c4b5fd' : '#22d3ee'} strokeWidth="1.4" />
-                <text x={x} y={y + 2.5} fontSize="6" textAnchor="middle" fill="#bfe6f5">{port === 'NIC' ? 'NIC' : port.replace('Gi0/', '')}</text>
-              </g>
-            )
-          })
-        })}
       </svg>
+
+      {popup && (() => {
+        const dev = lab.devices[popup.dev]
+        const ports = portsForPopup()
+        const compatible = !src || src.dev === popup.dev || pairCompatible(src.dev, popup.dev)
+        return (
+          <div className="absolute z-30 w-[228px] rounded-xl border border-[#2a4a7a] bg-[#0c1730f7] shadow-2xl text-[12px]" style={{ left: popup.left, top: popup.top }}>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[#1d3054]">
+              <span className="font-semibold text-sim-text">{dev.name} <span className="text-sim-muted font-normal">· puertos libres</span></span>
+              <button onClick={() => { setPopup(null); setSrc(null) }} className="text-sim-muted hover:text-sim-text">✕</button>
+            </div>
+            {src && src.dev !== popup.dev && (
+              <div className="px-3 pt-2 text-[11px] text-[#b9a8e6]">Desde <b>{lab.devices[src.dev].name} {src.port}</b></div>
+            )}
+            <div className="px-2 py-2 flex flex-col gap-1 max-h-[190px] overflow-y-auto">
+              {!compatible ? (
+                <div className="px-1 py-2 text-[11px] text-red-300">Este cable no sirve entre {srcDev.name} y {dev.name}. Necesitas cable <b>{needLabel(src.dev, popup.dev)}</b>.</div>
+              ) : ports.length ? (
+                ports.map((port) => (
+                  <button key={port} onClick={() => choosePort(port)}
+                    className="text-left px-2.5 py-1.5 rounded-md border border-[#22345c] bg-[#12213d] hover:border-cyan-700 hover:bg-[#163054] font-mono text-[11.5px] text-[#cfe0f7]">
+                    {port === 'NIC' ? 'Puerto de red (NIC)' : port}
+                  </button>
+                ))
+              ) : (
+                <div className="px-1 py-2 text-[11px] text-sim-muted">Este equipo no tiene puertos libres.</div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       <div className="flex flex-wrap gap-4 px-2 pt-2 pb-1 text-sim-muted text-xs">
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#22c55e' }} /> Up/Up (verde)</span>
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#ef4444' }} /> Down / shutdown / falla (rojo)</span>
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#f59e0b' }} /> STP o VLAN mismatch (naranja)</span>
-        <span className="ml-auto">{cabling ? '🔌 Clic en los círculos de puerto para cablear' : 'Clic en un dispositivo → abre su consola CLI'}</span>
+        <span className="ml-auto">{cabling ? '🔌 Elige cable y haz clic en un equipo' : 'Clic = consola · Arrastra los equipos para acomodarlos'}</span>
       </div>
     </div>
   )

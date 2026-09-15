@@ -108,6 +108,14 @@ test('los escenarios de construcción exponen spec.build y su historia se render
   }
 })
 
+test('cableado: el tipo de cable se valida (directo switch-PC, cruzado switch-switch)', () => {
+  const lab = generateConstructionLab(11, scenario('c-edificio'))
+  assert.equal(connectPorts(lab, { dev: 'SW1', port: 'Gi0/5' }, { dev: 'SWB', port: 'Gi0/1' }, 'directo').ok, false)
+  assert.equal(connectPorts(lab, { dev: 'SW1', port: 'Gi0/5' }, { dev: 'SWB', port: 'Gi0/1' }, 'cruzado').ok, true)
+  assert.equal(connectPorts(lab, { dev: 'SWB', port: 'Gi0/2' }, { dev: 'PCB1', port: 'NIC' }, 'cruzado').ok, false)
+  assert.equal(connectPorts(lab, { dev: 'SWB', port: 'Gi0/2' }, { dev: 'PCB1', port: 'NIC' }, 'directo').ok, true)
+})
+
 test('reiniciar la construcción deja la topología en blanco', () => {
   const lab = generateConstructionLab(7, scenario('c-edificio'))
   wire(lab, 'SW1', 'Gi0/5', 'SWB', 'Gi0/1')

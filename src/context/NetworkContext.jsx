@@ -1,9 +1,9 @@
 // Estado global en tiempo real del laboratorio: generador, CLI, validación y persistencia
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { mulberry32, hasCli } from '../lib/utils.js'
-import { generateSpec, pickScenario, buildDevices, buildLinks, buildGoals, scenarioFaults } from '../lib/labGenerator.js'
+import { generateSpec, pickScenario, buildDevices, buildLinks, buildGoals, scenarioFaults, TOPO_ORDER } from '../lib/labGenerator.js'
 import { generateConstructionLab } from '../lib/buildGenerator.js'
-import { recompute, evaluateGoals, connectPorts } from '../lib/engine.js'
+import { recompute, evaluateGoals, connectPorts, positionsFor } from '../lib/engine.js'
 import { execCommand, ensureConsole } from '../lib/cli.js'
 
 const SKEY = 'ccna_sim_stats_v1'
@@ -30,6 +30,8 @@ export function buildLab(seed, pref) {
   const devices = buildDevices(spec)
   faults.forEach((f) => f.apply(devices))
   const lab = { spec, scenario: sc, devices, links: buildLinks(spec), faults, goals: buildGoals(spec), hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null }
+  lab.order = TOPO_ORDER.filter((id) => !!devices[id])
+  lab.positions = positionsFor(spec)
   recompute(lab)
   return lab
 }
@@ -47,7 +49,6 @@ export function NetworkProvider({ children }) {
   const [validation, setValidation] = useState(null)
   const [toasts, setToasts] = useState([])
   const [cabling, setCabling] = useState(false)
-  const [cabSrc, setCabSrc] = useState(null)
 
   const bump = useCallback(() => setTick((t) => t + 1), [])
   const toast = useCallback((msg, kind) => {
@@ -102,7 +103,6 @@ export function NetworkProvider({ children }) {
       setActiveState(null)
       setValidation(null)
       setCabling(false)
-      setCabSrc(null)
       bump()
       toast('↺ Construcción reiniciada: topología y VLAN en blanco.')
       return
@@ -130,7 +130,6 @@ export function NetworkProvider({ children }) {
     setActiveState(null)
     setValidation(null)
     setCabling(false)
-    setCabSrc(null)
     bump()
     toast('🎫 ' + nl.spec.ticket.id + ' — ' + nl.scenario.title + ' (' + nl.scenario.diff + ') · Sucursal ' + nl.spec.site)
   }, [lab, stats.pref, bump, toast])
@@ -167,26 +166,18 @@ export function NetworkProvider({ children }) {
 
   const closeValidation = useCallback(() => setValidation(null), [])
 
-  const toggleCabling = useCallback(() => { setCabling((c) => !c); setCabSrc(null) }, [])
-  const cancelCab = useCallback(() => setCabSrc(null), [])
-  const pickPort = useCallback((devId, port) => {
-    if (!lab || lab.mode !== 'build') return
-    if (!cabSrc) { setCabSrc({ dev: devId, port }); return }
-    if (cabSrc.dev === devId && cabSrc.port === port) { setCabSrc(null); return }
-    const res = connectPorts(lab, cabSrc, { dev: devId, port })
-    if (res.ok) {
-      const a = lab.devices[cabSrc.dev], b = lab.devices[devId]
-      toast('🔌 Cable conectado: ' + a.name + (a.type === 'pc' ? '' : ' ' + cabSrc.port) + ' ↔ ' + b.name + (b.type === 'pc' ? '' : ' ' + port), 'ok')
-      setCabSrc(null)
-      setCabling(false)
-      bump()
-    } else toast(res.reason || 'No se pueden conectar esos puertos.', 'err')
-  }, [lab, cabSrc, toast, bump])
+  const toggleCabling = useCallback(() => setCabling((c) => !c), [])
+  const connect = useCallback((a, b, type) => {
+    const res = connectPorts(lab, a, b, type)
+    if (res.ok) { toast('🔌 ' + res.label, 'ok'); bump(); return true }
+    toast(res.reason || 'No se pudieron conectar esos puertos.', 'err')
+    return false
+  }, [lab, toast, bump])
 
   const value = {
     lab, tick, active, sessions: sessionsRef.current, stats, toasts, validation, goalsResults,
     setActive, run, giveHint, revealSolution, resetLab, newLab, validate, closeValidation, setPref, toast,
-    cabling, cabSrc, toggleCabling, cancelCab, pickPort,
+    cabling, toggleCabling, connect,
   }
   return <NetworkContext.Provider value={value}>{children}</NetworkContext.Provider>
 }

@@ -14,14 +14,11 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Lienzo de topología */
 .topo-bg { background: radial-gradient(900px 480px at 50% 20%, #0c1a33 0%, #08101f 70%); }
-.devg { cursor: pointer; }
+.devg { cursor: grab; }
+.devg:active { cursor: grabbing; }
 .devg:hover .iconbg { filter: brightness(1.35); }
 .devg .halo { opacity: 0; transition: opacity 0.2s; }
 .devg.active .halo { opacity: 1; }
-
-/* Puntos de puerto en modo cableado */
-.portdot { cursor: crosshair; }
-.portdot:hover { filter: brightness(1.7); }
 
 /* Enlaces con color de estado dinámico */
 .link { stroke-width: 3.5; stroke-linecap: round; transition: stroke 0.25s; }
