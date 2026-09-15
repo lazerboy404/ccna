@@ -242,6 +242,7 @@ export default function TopologyCanvas() {
               <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} className={'link ' + LINK_CLASS[state] + (l.kind === 'wifi' ? ' lk-wifi' : '')}>
                 <title>{dA.name + ' (' + (l.a.port || 'NIC') + ') ↔ ' + dB.name + ' (' + (l.b.port || 'NIC') + ')\n' + l.label + ' — ' + detail}</title>
               </line>
+              {state === 'ok' && <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} className="link-flow" />}
               {cabling && (
                 <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="transparent" strokeWidth="16" style={{ cursor: 'pointer' }}
                   onClick={(e) => { e.stopPropagation(); disconnect(l.id) }}>

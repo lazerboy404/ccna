@@ -244,6 +244,9 @@ export default function TicketPanel() {
             <b>enable secret X</b> · <b>line console 0|vty 0 4</b> → <b>password X</b> → <b>login</b> · <b>crypto key generate rsa</b> · <b>transport input ssh</b><br />
             <b>ntp server 10.0.0.1</b> · <b>ip dhcp pool X</b> → <b>network ...</b> → <b>default-router ...</b><br />
             <b>show cdp neighbors</b> · <b>show lldp neighbors</b> · <b>show ntp status</b> · <b>show ip dhcp binding</b><br />
+            <b>channel-group 1 mode active</b> · <b>spanning-tree bpduguard enable</b> · <b>spanning-tree guard root|loop</b><br />
+            <b>ip dhcp snooping [vlan X]</b> · <b>ip arp inspection vlan X</b> · <b>ipv6 address .../64</b> · <b>ipv6 route ...</b><br />
+            <b>show etherchannel summary</b> · <b>show ipv6 interface brief</b> · <b>show ip dhcp snooping</b><br />
             <b>show access-lists</b> · <b>show port-security</b> · <b>show ip protocols</b><br />
             <b>show running-config</b> · <b>ping &lt;ip&gt;</b> · <b>hostname X</b><br />
             En equipos: <b>ipconfig</b> · <b>ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt;</b> · <b>ping &lt;ip&gt;</b><br />

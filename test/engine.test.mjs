@@ -3,7 +3,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { INTERNET } from '../src/lib/utils.js'
 import { SCENARIOS, generateSpec, buildDevices, buildLinks, buildGoals, scenarioFaults } from '../src/lib/labGenerator.js'
-import { recompute, evaluateGoals, pingSim, simRequest } from '../src/lib/engine.js'
+import { recompute, evaluateGoals, pingSim, simRequest, linkBlocked } from '../src/lib/engine.js'
 import { execCommand } from '../src/lib/cli.js'
 
 function buildLabFor(sc, seed) {
@@ -11,6 +11,7 @@ function buildLabFor(sc, seed) {
   const faults = scenarioFaults(spec, sc)
   const devices = buildDevices(spec)
   const links = buildLinks(spec)
+  if (sc.setup) sc.setup(spec, devices, links)
   faults.forEach((f) => { if (f.apply) f.apply(devices, links) })
   let goals = buildGoals(spec)
   if (sc.extraGoals) goals = goals.concat(sc.extraGoals(spec))
@@ -196,6 +197,40 @@ test('ACL extendida con puerto (HTTP 80): solo el host autorizado entra', () => 
   assert.equal(simRequest(lab, 'PC1', srvIp, 'tcp', 80).ok, true, 'PC-ADMIN sigue pudiendo')
   assert.equal(pingSim(lab, 'PC2', srvIp).ok, true, 'el resto del tráfico sigue permitido')
   assert.deepEqual(evaluateGoals(lab).filter((g) => !g.res.ok).map((g) => g.label), [])
+})
+
+test('nuevos temas 200-301: STP guards, DHCP snooping/DAI, IPv6 y EtherChannel', () => {
+  for (const key of ['i-stp-guards', 'i-l2-seguridad', 'i-ipv6', 'i-etherchannel']) {
+    const sc = SCENARIOS.find((s) => s.key === key)
+    const lab = buildLabFor(sc, 777)
+    assert.ok(evaluateGoals(lab).some((g) => !g.res.ok), key + ': debe empezar con tareas pendientes')
+    solve(lab)
+    assert.deepEqual(evaluateGoals(lab).filter((g) => !g.res.ok).map((g) => g.label), [], key + ': quedó algo sin resolver')
+  }
+})
+
+test('EtherChannel: sin channel-group, STP bloquea el segundo enlace; al agruparlo, ambos quedan activos', () => {
+  const sc = SCENARIOS.find((s) => s.key === 'i-etherchannel')
+  const lab = buildLabFor(sc, 777)
+  const pair = () => lab.links.filter((x) => x.kind === 'eth' && x.a.dev === 'SW1' && x.b.dev === 'SW2')
+  assert.equal(pair().length, 2, 'deben existir dos enlaces entre los switches')
+  assert.ok(pair().some((x) => linkBlocked(lab, x)), 'sin EtherChannel uno debe quedar bloqueado')
+  solve(lab)
+  assert.ok(pair().every((x) => !linkBlocked(lab, x)), 'con EtherChannel ambos deben estar activos')
+})
+
+test('CLI: show etherchannel, show ipv6 interface/route y show ip dhcp snooping', () => {
+  const lab = plainLab(700)
+  const ctx = lab.ctx || (lab.ctx = { lab, sessions: {} })
+  run(lab, 'SW1', ['enable', 'configure terminal', 'interface Gi0/1', 'channel-group 1 mode active', 'end'])
+  run(lab, 'SW1', ['show etherchannel summary'])
+  assert.ok(ctx.sessions.SW1.out.some((e) => /Port-channel1/.test(e.t)), 'show etherchannel debe mostrar el Po1')
+  run(lab, 'R1', ['enable', 'configure terminal', 'ipv6 unicast-routing', 'interface Gi0/1', 'ipv6 address 2001:DB8:B:B1::1/64', 'end'])
+  run(lab, 'R1', ['show ipv6 interface brief'])
+  assert.ok(ctx.sessions.R1.out.some((e) => /2001:db8:b:b1::1/.test(e.t)), 'show ipv6 interface debe mostrar la dirección')
+  run(lab, 'SW2', ['enable', 'configure terminal', 'ip dhcp snooping', 'ip dhcp snooping vlan 30', 'end'])
+  run(lab, 'SW2', ['show ip dhcp snooping'])
+  assert.ok(ctx.sessions.SW2.out.some((e) => /snooping/i.test(e.t)), 'show ip dhcp snooping debe mostrar el estado')
 })
 
 test('CLI: show access-lists y show port-security no fallan', () => {

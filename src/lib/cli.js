@@ -177,6 +177,17 @@ function showStp(lab, d, o) {
       o(pad('VLAN' + String(v).padStart(4, '0'), 8) + pad(p, 10) + pad('Desg', 8) + pad(st === 'forwarding' ? 'FWD' : 'BLK', 10) + pad('4', 7) + ((d.portfast && d.portfast[p]) ? 'True' : 'False'), st === 'forwarding' ? '' : 'err')
     }
   }
+  let guards = false
+  for (const [p, i] of Object.entries(d.interfaces)) {
+    if (!i.guards || !Object.values(i.guards).some(Boolean)) continue
+    const list = []
+    if (i.guards.bpduguard) list.push('BPDU Guard')
+    if (i.guards.bpdufilter) list.push('BPDU Filter')
+    if (i.guards.root) list.push('Root Guard')
+    if (i.guards.loop) list.push('Loop Guard')
+    if (!guards) { o(''); o('Protecciones por puerto:', 'hdr'); guards = true }
+    o('  ' + pad(p, 10) + list.join(', '), 'dim')
+  }
 }
 
 function showArp(lab, d, o) {
@@ -312,6 +323,52 @@ function showDhcpBinding(lab, d, o) {
   }
 }
 
+function showSnoop(lab, d, o) {
+  o('DHCP snooping: ' + (d.dhcpSnoop ? 'habilitado' : 'deshabilitado'), 'hdr')
+  o('  VLANs: ' + ((d.snoopVlans && d.snoopVlans.length) ? d.snoopVlans.join(',') : '-'))
+  const trusted = Object.entries(d.interfaces).filter(([, i]) => i.snoopTrust).map(([p]) => p)
+  o('  Puertos de confianza (trust): ' + (trusted.join(', ') || '-'))
+}
+
+function showDai(lab, d, o) {
+  o('Dynamic ARP Inspection: VLANs ' + ((d.daiVlans && d.daiVlans.length) ? d.daiVlans.join(',') : '-'), 'hdr')
+  const trusted = Object.entries(d.interfaces).filter(([, i]) => i.daiTrust).map(([p]) => p)
+  o('  Puertos de confianza (trust): ' + (trusted.join(', ') || '-'))
+}
+
+function showEther(lab, d, o) {
+  if (!isSwitch(d)) { o('% Comando disponible solo en switches.', 'err'); return }
+  const groups = {}
+  for (const [p, i] of Object.entries(d.interfaces)) if (i.kind === 'port' && i.channel) (groups[i.channel] || (groups[i.channel] = [])).push({ port: p, mode: i.channelMode })
+  const nums = Object.keys(groups)
+  if (!nums.length) { o('(sin EtherChannel — usa: channel-group <n> mode active)', 'dim'); return }
+  for (const n of nums) {
+    const bundled = groups[n].length > 1
+    o('Port-channel' + n + ' (LACP)  ' + (bundled ? 'SU (up)' : 'SD (down: falta otro miembro)'), bundled ? 'ok' : 'err')
+    for (const g of groups[n]) o('  ' + pad(g.port, 8) + 'Po' + n + '(' + (g.mode || 'on') + ')   ' + (physUp(lab, d.id, g.port) ? 'P (in port-channel)' : 'D (down)'), physUp(lab, d.id, g.port) ? '' : 'err')
+  }
+}
+
+function showIpv6IntBrief(lab, d, o) {
+  o(pad('Interface', 22) + pad('IPv6 Address', 34) + 'Status', 'hdr')
+  for (const [name, i] of Object.entries(d.interfaces)) {
+    const up = i.kind === 'svi' ? sviUp(d, name) : i.kind === 'routed' ? portUp(lab, d.id, name) : physUp(lab, d.id, name)
+    o(pad(name, 22) + pad((i.ipv6 ? i.ipv6 + '/' + i.ipv6Prefix : 'unassigned'), 34) + (up ? 'up' : 'down'), up ? 'ok' : '')
+  }
+  o('  Enrutamiento IPv6: ' + (d.ipv6Routing ? 'habilitado' : 'deshabilitado'), 'dim')
+}
+
+function showIpv6Route(lab, d, o) {
+  o('IPv6 Routing Table', 'hdr')
+  o('Codes: C - Connected, L - Local, S - Static', 'dim')
+  for (const [name, i] of Object.entries(d.interfaces)) {
+    if (!i.ipv6) continue
+    o('C   ' + i.ipv6 + '/' + i.ipv6Prefix + ' [0/0] via ' + name + ', directly connected')
+    o('L   ' + i.ipv6 + '/128 [0/0] via ' + name + ', receive')
+  }
+  for (const r of d.ipv6Routes || []) o('S   ' + r.prefix + ' [1/0] via ' + r.via)
+}
+
 function showRun(lab, d, o) {
   o('!', 'dim')
   o('hostname ' + d.name, 'hdr')
@@ -345,6 +402,13 @@ function showRun(lab, d, o) {
       }
       if (d.stp && d.stp[name] === 'blocking') o(' ! Puerto bloqueado por STP (BLOCKING)', 'err')
       if (d.portfast && d.portfast[name]) o(' spanning-tree portfast')
+      if (i.guards) {
+        if (i.guards.bpduguard) o(' spanning-tree bpduguard enable')
+        if (i.guards.bpdufilter) o(' spanning-tree bpdufilter enable')
+        if (i.guards.root) o(' spanning-tree guard root')
+        if (i.guards.loop) o(' spanning-tree guard loop')
+      }
+      if (i.channel) o(' channel-group ' + i.channel + ' mode ' + (i.channelMode || 'on'))
       if (i.security) {
         o(' switchport port-security')
         if (i.security.max) o(' switchport port-security maximum ' + i.security.max)
@@ -353,8 +417,12 @@ function showRun(lab, d, o) {
         if (i.security.state === 'err-disabled') o(' ! Puerto en err-disabled por violación de port-security', 'err')
       }
       for (const a of (d.aclApply || [])) if (a.iface === name) o(' ip access-group ' + a.name + ' ' + a.dir)
-    }    if (i.ip) o(' ip address ' + i.ip + ' ' + i.mask)
+    }
+    if (i.ip) o(' ip address ' + i.ip + ' ' + i.mask)
+    if (i.ipv6) o(' ipv6 address ' + i.ipv6 + '/' + i.ipv6Prefix)
     if (i.natRole) o(' ip nat ' + i.natRole)
+    if (i.snoopTrust) o(' ip dhcp snooping trust')
+    if (i.daiTrust) o(' ip arp inspection trust')
     if (i.status === 'down') o(' shutdown', 'err')
     else if (i.kind !== 'port') o(' no shutdown')
     o('!', 'dim')
@@ -380,6 +448,11 @@ function showRun(lab, d, o) {
     if (p.router) o(' default-router ' + p.router)
     if (p.dns) o(' dns-server ' + p.dns)
   }
+  if (d.dhcpSnoop) o('ip dhcp snooping')
+  if (d.snoopVlans && d.snoopVlans.length) o('ip dhcp snooping vlan ' + d.snoopVlans.join(','))
+  if (d.daiVlans && d.daiVlans.length) o('ip arp inspection vlan ' + d.daiVlans.join(','))
+  if (d.ipv6Routing) o('ipv6 unicast-routing')
+  for (const r of d.ipv6Routes || []) o('ipv6 route ' + r.prefix + ' ' + r.via)
   if (d.consolePass || d.consoleLogin) { o('line console 0'); if (d.consolePass) o(' password 7 0xxxxxxxxxxx'); if (d.consoleLogin) o(' login') }
   if (d.vtyPass || d.vtyLogin || d.vtyTransport) { o('line vty 0 4'); if (d.vtyPass) o(' password 7 0xxxxxxxxxxx'); if (d.vtyLogin) o(' login'); if (d.vtyTransport) o(' transport input ' + d.vtyTransport) }
   o('!', 'dim')
@@ -455,8 +528,13 @@ function showCmd(ctx, d, o, toks) {
   const sub = (toks[1] || '').toLowerCase()
   if (sub === 'ip' && toks[2] === 'interface') return showIpIntBrief(lab, d, o)
   if (sub === 'ip' && toks[2] === 'nat') return showNat(lab, d, o)
+  if (sub === 'ip' && toks[2] === 'dhcp' && toks[3] === 'snooping') return showSnoop(lab, d, o)
+  if (sub === 'ip' && toks[2] === 'arp' && toks[3] === 'inspection') return showDai(lab, d, o)
   if (sub === 'ip' && toks[2] === 'dhcp') return showDhcpBinding(lab, d, o)
   if (sub === 'ntp') return showNtp(lab, d, o)
+  if (sub === 'etherchannel') return showEther(lab, d, o)
+  if (sub === 'ipv6' && toks[2] === 'interface') return showIpv6IntBrief(lab, d, o)
+  if (sub === 'ipv6' && toks[2] === 'route') return showIpv6Route(lab, d, o)
   if (sub === 'cdp') return showCdp(lab, d, o, 'cdp')
   if (sub === 'lldp') return showCdp(lab, d, o, 'lldp')
   if (sub === 'ip' && toks[2] === 'route') return showIpRoute(lab, d, o)
@@ -753,6 +831,24 @@ export function execCommand(ctx, devId, line) {
       d.ntpServers = d.ntpServers || []; if (!d.ntpServers.includes(toks[2])) d.ntpServers.push(toks[2])
       o('Servidor NTP ' + toks[2] + ' configurado.', 'ok'); recompute(lab); return
     }
+    if (cmd === 'ipv6' && toks[1] === 'unicast-routing') { d.ipv6Routing = true; o('Enrutamiento IPv6 (unicast-routing) habilitado.', 'ok'); recompute(lab); return }
+    if (cmd === 'ipv6' && toks[1] === 'route') {
+      const pfx = toks[2], nh = toks[3]
+      if (!pfx || !nh || !pfx.includes(':') || !nh.includes(':')) { o('% Uso: ipv6 route <prefijo/len> <siguiente-salto>', 'err'); recompute(lab); return }
+      d.ipv6Routes = (d.ipv6Routes || []).filter((r) => r.prefix !== pfx); d.ipv6Routes.push({ prefix: pfx, via: nh })
+      o('Ruta IPv6 ' + pfx + ' vía ' + nh + ' instalada.', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'ip' && toks[1] === 'dhcp' && toks[2] === 'snooping') {
+      if (toks[3] === 'vlan') { d.snoopVlans = parseVlanList(toks.slice(4).join(','), labVlans(lab)) || []; o('DHCP snooping en VLAN ' + d.snoopVlans.join(','), 'ok') }
+      else { d.dhcpSnoop = true; o('DHCP snooping habilitado.', 'ok') }
+      recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'ip' && toks[2] === 'dhcp' && toks[3] === 'snooping') { d.dhcpSnoop = false; d.snoopVlans = []; recompute(lab); return }
+    if (cmd === 'ip' && toks[1] === 'arp' && toks[2] === 'inspection') {
+      d.daiVlans = (toks[3] === 'vlan') ? (parseVlanList(toks.slice(4).join(','), labVlans(lab)) || []) : []
+      o('Dynamic ARP Inspection en VLAN ' + d.daiVlans.join(','), 'ok'); recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'ip' && toks[2] === 'arp' && toks[3] === 'inspection') { d.daiVlans = []; recompute(lab); return }
     if (cmd === 'ip' && toks[1] === 'dhcp' && toks[2] === 'pool') {
       const name = toks[3]
       if (!name) { o('% Uso: ip dhcp pool <nombre>', 'err'); recompute(lab); return }
@@ -846,12 +942,24 @@ export function execCommand(ctx, devId, line) {
       if (i.security && i.security.state === 'err-disabled') { i.security.state = 'secure-up'; o('✔ Puerto recuperado del estado err-disabled.', 'ok') }
       portNote(ctx, d.id, c.ifc, o); recompute(lab); return
     }
+    if (cmd === 'ipv6' && toks[1] === 'address') {
+      const a = toks[2] || ''
+      const parts = a.split('/')
+      if (!parts[0] || !parts[0].includes(':')) { o('% Uso: ipv6 address <dirección>/<prefijo>', 'err'); recompute(lab); return }
+      i.ipv6 = parts[0].toLowerCase(); i.ipv6Prefix = parts[1] ? +parts[1] : 64
+      o('Dirección IPv6 ' + i.ipv6 + '/' + i.ipv6Prefix + ' asignada a ' + c.ifc + '.', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'ipv6' && toks[2] === 'address') { i.ipv6 = null; i.ipv6Prefix = null; recompute(lab); return }
     if (cmd === 'ip' && toks[1] === 'nat' && (toks[2] === 'inside' || toks[2] === 'outside')) {
       i.natRole = toks[2]
       o('Interfaz ' + c.ifc + ' marcada como NAT ' + toks[2] + '.', 'ok')
       recompute(lab); return
     }
     if (cmd === 'no' && toks[1] === 'ip' && toks[2] === 'nat') { i.natRole = null; recompute(lab); return }
+    if (cmd === 'ip' && toks[1] === 'dhcp' && toks[2] === 'snooping' && toks[3] === 'trust') { i.snoopTrust = true; o(c.ifc + ': puerto de confianza para DHCP snooping.', 'ok'); recompute(lab); return }
+    if (cmd === 'no' && toks[1] === 'ip' && toks[2] === 'dhcp' && toks[3] === 'snooping') { i.snoopTrust = false; recompute(lab); return }
+    if (cmd === 'ip' && toks[1] === 'arp' && toks[2] === 'inspection' && toks[3] === 'trust') { i.daiTrust = true; o(c.ifc + ': puerto de confianza para ARP inspection.', 'ok'); recompute(lab); return }
+    if (cmd === 'no' && toks[1] === 'ip' && toks[2] === 'arp' && toks[3] === 'inspection') { i.daiTrust = false; recompute(lab); return }
     if (cmd === 'ip' && toks[1] === 'access-group') {
       const name = toks[2]
       const dir = (toks[3] || '').toLowerCase()
@@ -957,6 +1065,29 @@ export function execCommand(ctx, devId, line) {
       d.portfast = d.portfast || {}; delete d.portfast[c.ifc]
       recompute(lab); return
     }
+    if (cmd === 'spanning-tree' && toks[1] === 'bpduguard') {
+      i.guards = i.guards || {}; i.guards.bpduguard = (toks[2] || 'enable') !== 'disable'
+      o('BPDU Guard ' + (i.guards.bpduguard ? 'habilitado' : 'deshabilitado') + ' en ' + c.ifc + '.', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'spanning-tree' && toks[2] === 'bpduguard') { if (i.guards) i.guards.bpduguard = false; recompute(lab); return }
+    if (cmd === 'spanning-tree' && toks[1] === 'bpdufilter') {
+      i.guards = i.guards || {}; i.guards.bpdufilter = (toks[2] || 'enable') !== 'disable'
+      o('BPDU Filter configurado en ' + c.ifc + '.', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'spanning-tree' && toks[2] === 'bpdufilter') { if (i.guards) i.guards.bpdufilter = false; recompute(lab); return }
+    if (cmd === 'spanning-tree' && toks[1] === 'guard' && (toks[2] === 'root' || toks[2] === 'loop')) {
+      i.guards = i.guards || {}; i.guards[toks[2]] = true
+      o('Guard ' + toks[2] + ' habilitado en ' + c.ifc + '.', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'spanning-tree' && toks[2] === 'guard') { if (i.guards) i.guards[toks[3]] = false; recompute(lab); return }
+    if (cmd === 'channel-group') {
+      if (!isSwitch(d) || i.kind !== 'port') { o('% channel-group aplica en puertos de switches.', 'err'); recompute(lab); return }
+      const n = +toks[1], mode = (toks[3] || 'active').toLowerCase()
+      if (!n) { o('% Uso: channel-group <n> mode active|passive|on', 'err'); recompute(lab); return }
+      i.channel = n; i.channelMode = mode
+      o('Puerto ' + c.ifc + ' agregado al EtherChannel ' + n + ' (modo ' + mode + ').', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'channel-group') { i.channel = null; i.channelMode = null; recompute(lab); return }
     if (cmd === 'description') { i.desc = toks.slice(1).join(' '); recompute(lab); return }
     o("% Invalid input detected at '^' marker.", 'err'); recompute(lab); return
   }

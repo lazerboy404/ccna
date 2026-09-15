@@ -1,6 +1,6 @@
 // Generador de laboratorios: escenarios reales, dispositivos, enlaces, objetivos y catálogo de fallas
 import { mulberry32, M24, M30, M16, M0, INTERNET } from './utils.js'
-import { simRequest, pingSim } from './engine.js'
+import { simRequest, pingSim, carriedVlans, linkBlocked } from './engine.js'
 
 export const TOPO_ORDER = ['ISP', 'FW1', 'R1', 'SW1', 'SW2', 'SW3', 'PC1', 'PC2', 'PC3', 'PC4']
 
@@ -146,6 +146,71 @@ export const SCENARIOS = [
         { id: 'x-other', label: 'El resto del tráfico sigue permitido (ping)', check: (l) => pingSim(l, 'PC2', srvIp).ok ? true : { ok: false, reason: 'No bloquees todo: al final de la ACL debes permitir ip any any' } },
       ]
     } },
+  { key: 'i-stp-guards', diff: 'Intermedio', title: 'Proteger el borde de la red', design: null, sw3: null, faultKeys: [],
+    story: s => '«Quieren proteger la red por si alguien conecta un switch o un cable no autorizado en las oficinas.» — TI',
+    task: (s) => ({
+      key: 'task-stp', title: 'Habilitar protecciones de STP', category: 'Spanning-Tree',
+      hints: ['En los puertos que van a equipos finales habilita BPDU Guard; en el enlace hacia el otro switch, Root Guard.',
+        'En ' + s.names.sw2 + ': Gi0/2 y Gi0/3 → spanning-tree bpduguard enable. En ' + s.names.sw1 + ': Gi0/2 → spanning-tree guard root.'],
+      solution: [
+        { devId: 'SW2', cmds: ['enable', 'configure terminal', 'interface Gi0/2', 'spanning-tree bpduguard enable', 'interface Gi0/3', 'spanning-tree bpduguard enable', 'end'] },
+        { devId: 'SW1', cmds: ['enable', 'configure terminal', 'interface Gi0/2', 'spanning-tree guard root', 'end'] },
+      ],
+    }),
+    extraGoals: (s) => [
+      { id: 'x-bpdu', label: 'BPDU Guard en los puertos de acceso de ' + s.names.sw2, check: (l) => { const a = l.devices.SW2.interfaces['Gi0/2'], b = l.devices.SW2.interfaces['Gi0/3']; return (a.guards && a.guards.bpduguard && b.guards && b.guards.bpduguard) ? true : { ok: false, reason: 'spanning-tree bpduguard enable en Gi0/2 y Gi0/3' } } },
+      { id: 'x-root', label: 'Root Guard en el enlace troncal de ' + s.names.sw1, check: (l) => { const i = l.devices.SW1.interfaces['Gi0/2']; return (i.guards && i.guards.root) ? true : { ok: false, reason: 'En ' + s.names.sw1 + ': interface Gi0/2 → spanning-tree guard root' } } },
+    ] },
+  { key: 'i-l2-seguridad', diff: 'Intermedio', title: 'Seguridad en los puertos', design: null, sw3: null, faultKeys: [],
+    story: s => '«Quieren evitar que alguien conecte un aparato que reparta direcciones falsas o que suplante equipos en las oficinas.» — TI',
+    task: (s) => ({
+      key: 'task-l2sec', title: 'DHCP snooping y ARP inspection', category: 'Seguridad L2',
+      hints: ['Habilita DHCP snooping global y para las VLAN de acceso, y marca el enlace hacia el core como de confianza.',
+        'En ' + s.names.sw2 + ': ip dhcp snooping; ip dhcp snooping vlan ' + s.vv + ',' + s.vs + '; ip arp inspection vlan ' + s.vv + ',' + s.vs + '; y en Gi0/1: ip dhcp snooping trust y ip arp inspection trust.'],
+      solution: [{ devId: 'SW2', cmds: ['enable', 'configure terminal', 'ip dhcp snooping', 'ip dhcp snooping vlan ' + s.vv + ',' + s.vs, 'ip arp inspection vlan ' + s.vv + ',' + s.vs, 'interface Gi0/1', 'ip dhcp snooping trust', 'ip arp inspection trust', 'end'] }],
+    }),
+    extraGoals: (s) => [
+      { id: 'x-snoop', label: 'DHCP snooping para las VLAN de acceso', check: (l) => { const d2 = l.devices.SW2, vl = d2.snoopVlans || []; return (d2.dhcpSnoop && vl.includes(s.vv) && vl.includes(s.vs)) ? true : { ok: false, reason: 'ip dhcp snooping y ip dhcp snooping vlan ' + s.vv + ',' + s.vs } } },
+      { id: 'x-trust', label: 'Enlace al core como puerto de confianza', check: (l) => l.devices.SW2.interfaces['Gi0/1'].snoopTrust ? true : { ok: false, reason: 'En ' + s.names.sw2 + ' Gi0/1: ip dhcp snooping trust' } },
+      { id: 'x-dai', label: 'Dynamic ARP Inspection para las VLAN de acceso', check: (l) => { const vl = l.devices.SW2.daiVlans || []; return (vl.includes(s.vv) && vl.includes(s.vs)) ? true : { ok: false, reason: 'ip arp inspection vlan ' + s.vv + ',' + s.vs } } },
+    ] },
+  { key: 'i-ipv6', diff: 'Intermedio', title: 'Habilitar IPv6', design: null, sw3: null, faultKeys: [],
+    story: s => '«Quieren empezar a usar IPv6 en el enlace entre el router principal y el switch central.» — TI',
+    task: (s) => ({
+      key: 'task-ipv6', title: 'Configurar IPv6', category: 'IPv6',
+      hints: ['Habilita el enrutamiento IPv6 en el router y asigna direcciones /64 a los dos extremos del enlace.',
+        'R1: ipv6 unicast-routing; interface Gi0/1 → ipv6 address 2001:DB8:B:B1::1/64; y ipv6 route 2001:DB8:99::/64 2001:DB8:B:B1::2. SW1: interface Vlan99 → ipv6 address 2001:DB8:B:B1::2/64.'],
+      solution: [
+        { devId: 'R1', cmds: ['enable', 'configure terminal', 'ipv6 unicast-routing', 'interface Gi0/1', 'ipv6 address 2001:DB8:B:B1::1/64', 'exit', 'ipv6 route 2001:DB8:99::/64 2001:DB8:B:B1::2', 'end'] },
+        { devId: 'SW1', cmds: ['enable', 'configure terminal', 'interface Vlan99', 'ipv6 address 2001:DB8:B:B1::2/64', 'end'] },
+      ],
+    }),
+    extraGoals: (s) => [
+      { id: 'x-v6r1', label: 'R1 con IPv6 en Gi0/1 (2001:DB8:B:B1::1/64)', check: (l) => l.devices.R1.interfaces['Gi0/1'].ipv6 === '2001:db8:b:b1::1' ? true : { ok: false, reason: 'R1: interface Gi0/1 → ipv6 address 2001:DB8:B:B1::1/64' } },
+      { id: 'x-v6sw', label: 'SW1 con IPv6 en Vlan99 (2001:DB8:B:B1::2/64)', check: (l) => { const i = l.devices.SW1.interfaces['Vlan99']; return (i && i.ipv6 === '2001:db8:b:b1::2') ? true : { ok: false, reason: 'SW1: interface Vlan99 → ipv6 address 2001:DB8:B:B1::2/64' } } },
+      { id: 'x-v6rt', label: 'Enrutamiento IPv6 habilitado en R1', check: (l) => l.devices.R1.ipv6Routing ? true : { ok: false, reason: 'R1: ipv6 unicast-routing' } },
+      { id: 'x-v6route', label: 'Ruta IPv6 estática en R1 (2001:DB8:99::/64)', check: (l) => (l.devices.R1.ipv6Routes || []).some((r) => r.prefix === '2001:DB8:99::/64') ? true : { ok: false, reason: 'R1: ipv6 route 2001:DB8:99::/64 2001:DB8:B:B1::2' } },
+    ] },
+  { key: 'i-etherchannel', diff: 'Avanzado', title: 'Aprovechar los dos enlaces', design: null, sw3: null, faultKeys: [],
+    setup: (s, d, l) => {
+      d.SW1.interfaces['Gi0/7'] = { kind: 'port', mode: 'trunk', accessVlan: null, allowed: [s.vv, s.vs], nativeVlan: 1, encap: 'dot1q', status: 'up', desc: 'Enlace EtherChannel' }
+      d.SW2.interfaces['Gi0/4'] = { kind: 'port', mode: 'trunk', accessVlan: null, allowed: [s.vv, s.vs], nativeVlan: 1, encap: 'dot1q', status: 'up', desc: 'Enlace EtherChannel' }
+      l.push({ id: 'LPO', a: { dev: 'SW1', port: 'Gi0/7' }, b: { dev: 'SW2', port: 'Gi0/4' }, kind: 'eth', label: 'Segundo enlace (EtherChannel)' })
+    },
+    story: s => '«Instalaron un segundo cable entre los dos switches centrales, pero la red solo usa uno. Quieren aprovechar los dos y tener respaldo.» — TI',
+    task: (s) => ({
+      key: 'task-ether', title: 'Configurar EtherChannel (LACP)', category: 'EtherChannel',
+      hints: ['Agrupa los dos enlaces en el mismo Port-channel con LACP (mode active) en los cuatro puertos.',
+        'En ' + s.names.sw1 + ': Gi0/2 y Gi0/7 → channel-group 1 mode active. En ' + s.names.sw2 + ': Gi0/1 y Gi0/4 → channel-group 1 mode active.'],
+      solution: [
+        { devId: 'SW1', cmds: ['enable', 'configure terminal', 'interface Gi0/2', 'channel-group 1 mode active', 'interface Gi0/7', 'channel-group 1 mode active', 'end'] },
+        { devId: 'SW2', cmds: ['enable', 'configure terminal', 'interface Gi0/1', 'channel-group 1 mode active', 'interface Gi0/4', 'channel-group 1 mode active', 'end'] },
+      ],
+    }),
+    extraGoals: (s) => [
+      { id: 'x-ch', label: 'Los 4 puertos en el mismo EtherChannel (LACP active)', check: (l) => { for (const k of ['SW1.Gi0/2', 'SW1.Gi0/7', 'SW2.Gi0/1', 'SW2.Gi0/4']) { const [dv, p] = k.split('.'); const i = l.devices[dv].interfaces[p]; if (!i.channel || i.channelMode !== 'active') return { ok: false, reason: 'channel-group 1 mode active en ' + dv + ' ' + p } } return true } },
+      { id: 'x-active', label: 'Ambos enlaces activos (sin bloqueo por STP)', check: (l) => { const ls = l.links.filter((x) => x.kind === 'eth' && x.a.dev === 'SW1' && x.b.dev === 'SW2'); return ls.every((x) => !linkBlocked(l, x)) ? true : { ok: false, reason: 'Sin EtherChannel, STP bloquea el segundo enlace; agrupa los puertos' } } },
+    ] },
   { key: 'sorpresa', diff: 'Mixto', title: 'Incidente sin clasificar', design: null, sw3: null, faultKeys: null,
     story: s => '«La red no sirve bien. Hay varios reportes sueltos y nadie sabe por dónde empezar. Revísalo tú, por favor.» — Mesa de ayuda' },
 ]

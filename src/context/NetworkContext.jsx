@@ -29,6 +29,7 @@ export function buildLab(seed, pref) {
   const faults = scenarioFaults(spec, sc)
   const devices = buildDevices(spec)
   const links = buildLinks(spec)
+  if (sc.setup) sc.setup(spec, devices, links)
   faults.forEach((f) => { if (f.apply) f.apply(devices, links) })
   let goals = buildGoals(spec)
   if (sc.extraGoals) goals = goals.concat(sc.extraGoals(spec))
@@ -115,6 +116,7 @@ export function NetworkProvider({ children }) {
     }
     const devices = buildDevices(lab.spec)
     const links = buildLinks(lab.spec)
+    if (lab.scenario && lab.scenario.setup) lab.scenario.setup(lab.spec, devices, links)
     lab.faults.forEach((f) => { if (f.apply) f.apply(devices, links) })
     lab.devices = devices
     lab.links = links

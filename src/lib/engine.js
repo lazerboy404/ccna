@@ -92,9 +92,24 @@ export function carriedVlans(lab, l) {
   if (ia.mode === 'access' && ib.mode === 'access') return (ia.accessVlan != null && ia.accessVlan === ib.accessVlan) ? [ia.accessVlan] : []
   return []
 }
+export function redundantBlocked(lab, l) {
+  if (l.kind !== 'eth' || !l.a.port || !l.b.port) return false
+  const a = l.a.dev, b = l.b.dev
+  if (!isSwitch(lab.devices[a]) || !isSwitch(lab.devices[b])) return false
+  const pair = lab.links.filter((x) => x.kind === 'eth' && ((x.a.dev === a && x.b.dev === b) || (x.a.dev === b && x.b.dev === a)))
+  if (pair.length <= 1) return false
+  const chans = pair.map((x) => {
+    const ca = lab.devices[x.a.dev].interfaces[x.a.port], cb = lab.devices[x.b.dev].interfaces[x.b.port]
+    return (ca && cb && ca.channel && cb.channel && ca.channel === cb.channel) ? ca.channel : null
+  })
+  if (chans.every((c) => c && c === chans[0])) return false
+  return pair[0].id !== l.id
+}
+
 export function linkBlocked(lab, l) {
   const dA = lab.devices[l.a.dev], dB = lab.devices[l.b.dev]
-  return (dA.stp && dA.stp[l.a.port] === 'blocking') || (dB.stp && dB.stp[l.b.port] === 'blocking')
+  if ((dA.stp && dA.stp[l.a.port] === 'blocking') || (dB.stp && dB.stp[l.b.port] === 'blocking')) return true
+  return redundantBlocked(lab, l)
 }
 
 export function recompute(lab) {

@@ -29,6 +29,15 @@ button { font-family: inherit; cursor: pointer; }
 .lk-cut { stroke: #ef4444; stroke-dasharray: 2 7; stroke-width: 4; filter: drop-shadow(0 0 4px #ef444477); }
 .lk-wifi { stroke-dasharray: 3 5; }
 
+/* Animación de datos fluyendo por los enlaces activos */
+@keyframes flow { to { stroke-dashoffset: -32; } }
+.link-flow {
+  stroke: #d1fae5; stroke-width: 2; stroke-linecap: round;
+  stroke-dasharray: 4 12; pointer-events: none;
+  animation: flow 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .link-flow { animation: none; } }
+
 /* Scrollbar de la terminal */
 .term-scroll::-webkit-scrollbar { width: 9px; }
 .term-scroll::-webkit-scrollbar-thumb { background: #1c3a5e; border-radius: 5px; }
