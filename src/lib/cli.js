@@ -1,6 +1,6 @@
 // Consola Cisco IOS: modos user/priv/config/if/vlan/router, shows, ping y consola de PC
 import { validIp, parseMask, maskLen, netOf, macOf, pad, isSwitch, isEndpoint, M0 } from './utils.js'
-import { recompute, linkOf, otherSide, linkState, physUp, portUp, pcUp, sviUp, routesOf, primaryIp, labVlans, sameL2, pingSim, deliverTo, ospfNeighbors, linkBlocked, carriedVlans, aclAddrText, aclAppliesOn } from './engine.js'
+import { recompute, linkOf, otherSide, linkState, physUp, portUp, pcUp, sviUp, routesOf, primaryIp, labVlans, sameL2, pingSim, deliverTo, ospfNeighbors, linkBlocked, carriedVlans, aclAddrText, aclAppliesOn, encapOf, nativeOf } from './engine.js'
 
 export function cliS(ctx, devId) {
   return ctx.sessions[devId] || (ctx.sessions[devId] = { mode: 'user', ifc: null, vid: null, out: [], hist: [], hi: -1 })
@@ -138,11 +138,28 @@ function showVlanBrief(lab, d, o) {
 function showTrunk(lab, d, o) {
   if (!isSwitch(d)) { o('% Comando disponible solo en switches.', 'err'); return }
   const trunks = Object.entries(d.interfaces).filter(([p, i]) => i.kind === 'port' && i.mode === 'trunk')
-  if (!trunks.length) { o('% No hay puertos en modo troncal en este switch.', 'err'); o('Sugerencia: show interfaces <puerto> para ver el modo actual.', 'dim'); return }
-  o(pad('Port', 10) + pad('Mode', 10) + pad('Encapsulation', 16) + pad('Status', 12) + 'Vlans permitidas', 'hdr')
+  if (!trunks.length) { o('% No hay puertos en modo troncal en este switch.', 'err'); o('Sugerencia: show interfaces <puerto> switchport para ver el modo actual.', 'dim'); return }
+  o(pad('Port', 9) + pad('Mode', 8) + pad('Encapsulation', 15) + pad('Native', 8) + pad('Status', 12) + 'Vlans permitidas', 'hdr')
   for (const [p, i] of trunks) {
     const blocked = d.stp && d.stp[p] === 'blocking'
-    o(pad(p, 10) + pad(i.mode, 10) + pad('802.1q', 16) + pad(blocked ? 'STP-BLK' : physUp(lab, d.id, p) ? 'trunking' : 'down', 12) + i.allowed.join(','))
+    o(pad(p, 9) + pad(i.mode, 8) + pad(encapOf(i) === 'isl' ? 'isl' : '802.1q', 15) + pad(nativeOf(i), 8) + pad(blocked ? 'STP-BLK' : physUp(lab, d.id, p) ? 'trunking' : 'down', 12) + i.allowed.join(','))
+  }
+}
+
+function showSwitchport(lab, d, o, argstr) {
+  const r = resolveIfc(d, argstr.replace(/\s*switchport\s*$/i, '').trim())
+  if (r.err) { o(r.err, 'err'); return }
+  const name = r.ok, i = d.interfaces[name]
+  o('Name: ' + name, 'hdr')
+  if (i.kind === 'port') {
+    o('  Administrative Mode: ' + (i.mode === 'trunk' ? 'trunk' : 'static access'))
+    o('  Operational Mode: ' + (physUp(lab, d.id, name) ? (i.mode === 'trunk' ? 'trunk' : 'static access') : 'down'))
+    o('  Access Mode VLAN: ' + (i.accessVlan != null ? i.accessVlan : 1))
+    o('  Trunking Native Mode VLAN: ' + nativeOf(i))
+    o('  Trunking Encapsulation: ' + encapOf(i))
+    o('  Trunking VLANs Enabled: ' + (i.allowed.length ? i.allowed.join(',') : 'ALL'))
+  } else {
+    o('  Modo: ' + i.kind + (i.ip ? ' — ' + i.ip + '/' + maskLen(i.mask) : ''))
   }
 }
 
@@ -262,6 +279,8 @@ function showRun(lab, d, o) {
     if (i.kind === 'port') {
       if (i.mode === 'trunk') {
         o(' switchport mode trunk')
+        o(' switchport trunk encapsulation ' + (encapOf(i) === 'isl' ? 'isl' : 'dot1q'), encapOf(i) === 'isl' ? 'err' : '')
+        o(' switchport trunk native vlan ' + nativeOf(i), nativeOf(i) !== 1 ? 'err' : '')
         o(' switchport trunk allowed vlan ' + i.allowed.join(','))
       } else {
         o(' switchport mode access')
@@ -368,8 +387,10 @@ function showCmd(ctx, d, o, toks) {
   if (sub === 'ip' && toks[2] === 'protocols') return showIpProtocols(lab, d, o)
   if (sub === 'ip' && toks[2] === 'arp') return showArp(lab, d, o)
   if (sub === 'vlan') return showVlanBrief(lab, d, o)
+  if ((sub === 'interface' || sub === 'interfaces') && /switchport\s*$/i.test(toks.slice(2).join(' '))) return showSwitchport(lab, d, o, toks.slice(2).join(' '))
   if (sub === 'interfaces' && toks[2] === 'trunk') return showTrunk(lab, d, o)
   if (sub === 'interfaces') return showInterfaces(lab, d, o, toks.slice(2).join(' '))
+  if (sub === 'interface') return showInterfaces(lab, d, o, toks.slice(2).join(' '))
   if (sub === 'spanning-tree') return showStp(lab, d, o)
   if (sub === 'access-lists') return showAccessLists(lab, d, o)
   if (sub === 'port-security') return showPortSecurity(lab, d, o)
@@ -400,7 +421,7 @@ function helpFor(d, c, o) {
   if (c.mode === 'user') o('  enable | ping <ip> | show ... | exit')
   if (c.mode === 'priv') o('  configure terminal | disable | ping <ip> | show ... | exit')
   if (c.mode === 'config') o('  interface <nombre> | vlan <id> | ip route <red> <máscara> <via> | router ospf 1 | access-list <n> <permit|deny> <proto> <origen> <destino> | ssid <nombre> vlan <id> | hostname <X> | no <cmd> ... | end | exit')
-  if (c.mode === 'if') o('  ip address <ip> <máscara> | no ip address | shutdown | no shutdown | switchport mode access|trunk | switchport access vlan <id> | switchport trunk allowed vlan <lista|all|add X> | switchport port-security [maximum N|violation M|mac-address sticky] | ip access-group <acl> <in|out> | spanning-tree portfast [trunk] | description <txt> | end | exit')
+  if (c.mode === 'if') o('  ip address <ip> <máscara> | no ip address | shutdown | no shutdown | switchport mode access|trunk | switchport access vlan <id> | switchport trunk allowed vlan <lista|all|add X> | switchport trunk native vlan <id> | switchport trunk encapsulation dot1q | switchport port-security [...] | ip access-group <acl> <in|out> | spanning-tree portfast [trunk] | description <txt> | end | exit')
   if (c.mode === 'vlan') o('  name <nombre> | exit | end')
   if (c.mode === 'router') o('  network <red> <wildcard> area 0 | no network <red> | exit | end')
   o('  ' + common.join(' | '), 'dim')
@@ -474,6 +495,20 @@ export function execCommand(ctx, devId, line) {
     cliPing(lab, d, o, target); recompute(lab); return
   }
   if (cmd === 'show') { showCmd(ctx, d, o, toks); recompute(lab); return }
+
+  if (cmd === 'copy' && (toks[1] === 'running-config' || toks[1] === 'run')) {
+    o('Destination filename [startup-config]?')
+    o('Building configuration...', 'dim')
+    o('[OK]', 'ok')
+    o('Configuración guardada en la NVRAM (startup-config).', 'dim')
+    recompute(lab); return
+  }
+  if (cmd === 'write' || cmd === 'wr') {
+    o('Building configuration...', 'dim')
+    o('[OK]', 'ok')
+    o('Configuración guardada en la NVRAM (startup-config).', 'dim')
+    recompute(lab); return
+  }
 
   if (c.mode === 'user') {
     if (cmd === 'enable') c.mode = 'priv'
@@ -707,6 +742,20 @@ export function execCommand(ctx, devId, line) {
         i.mode = 'trunk'; i.allowed = Array.from(new Set(list)).sort((a, b) => a - b)
         portNote(ctx, d.id, c.ifc, o); recompute(lab); return
       }
+      if (toks[1] === 'trunk' && toks[2] === 'native' && toks[3] === 'vlan') {
+        const v = +toks[4]
+        if (!v) { o('% Uso: switchport trunk native vlan <id>', 'err'); recompute(lab); return }
+        i.mode = 'trunk'; i.nativeVlan = v
+        o('VLAN nativa del troncal: ' + v + '.', 'ok')
+        portNote(ctx, d.id, c.ifc, o); recompute(lab); return
+      }
+      if (toks[1] === 'trunk' && toks[2] === 'encapsulation') {
+        const e = (toks[3] || '').toLowerCase()
+        if (e !== 'dot1q' && e !== 'isl') { o('% Uso: switchport trunk encapsulation dot1q|isl', 'err'); recompute(lab); return }
+        i.encap = e
+        o('Encapsulación del troncal: ' + (e === 'isl' ? 'ISL' : '802.1Q (dot1q)') + (e === 'isl' ? ' — el requerimiento del cliente es dot1q.' : ''), e === 'isl' ? 'err' : 'ok')
+        portNote(ctx, d.id, c.ifc, o); recompute(lab); return
+      }
       if (toks[1] === 'port-security') {
         i.security = i.security || { enabled: true, max: 1, violation: 'shutdown', state: 'secure-up' }
         if (toks[2] === 'maximum') {
@@ -724,6 +773,12 @@ export function execCommand(ctx, devId, line) {
         portNote(ctx, d.id, c.ifc, o); recompute(lab); return
       }
       o("% Invalid input detected at '^' marker.", 'err'); recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'switchport' && toks[2] === 'trunk' && toks[3] === 'native') {
+      i.nativeVlan = 1; o('VLAN nativa restablecida a 1.', 'dim'); portNote(ctx, d.id, c.ifc, o); recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'switchport' && toks[2] === 'trunk' && toks[3] === 'encapsulation') {
+      i.encap = 'dot1q'; recompute(lab); return
     }
     if (cmd === 'no' && toks[1] === 'switchport' && toks[2] === 'port-security') {
       if (i.security) { delete i.security; o('Port-security deshabilitado en ' + c.ifc + '.', 'dim') }

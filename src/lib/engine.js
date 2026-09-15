@@ -62,12 +62,33 @@ export function sviUp(d, name) {
   return i.status === 'up' && !!d.vlans[v]
 }
 
+export const encapOf = (i) => (i && i.encap) || 'dot1q'
+export const nativeOf = (i) => (i && i.nativeVlan != null ? i.nativeVlan : 1)
+
+export function trunkIssues(lab, l) {
+  const dA = lab.devices[l.a.dev], dB = lab.devices[l.b.dev]
+  if (!isSwitch(dA) || !isSwitch(dB)) return null
+  const ia = dA.interfaces[l.a.port], ib = dB.interfaces[l.b.port]
+  if (!ia || !ib || ia.kind !== 'port' || ib.kind !== 'port') return null
+  if (ia.mode !== 'trunk' || ib.mode !== 'trunk') return null
+  return {
+    encap: encapOf(ia) !== encapOf(ib),
+    native: nativeOf(ia) !== nativeOf(ib),
+  }
+}
+
 export function carriedVlans(lab, l) {
   const dA = lab.devices[l.a.dev], dB = lab.devices[l.b.dev]
   if (!isSwitch(dA) || !isSwitch(dB)) return []
   const ia = dA.interfaces[l.a.port], ib = dB.interfaces[l.b.port]
   if (!ia || !ib) return []
-  if (ia.mode === 'trunk' && ib.mode === 'trunk') return ia.allowed.filter((v) => ib.allowed.includes(v))
+  if (ia.mode === 'trunk' && ib.mode === 'trunk') {
+    if (encapOf(ia) !== encapOf(ib)) return []
+    let v = ia.allowed.filter((x) => ib.allowed.includes(x))
+    const na = nativeOf(ia), nb = nativeOf(ib)
+    if (na !== nb) v = v.filter((x) => x !== na && x !== nb)
+    return v
+  }
   if (ia.mode === 'access' && ib.mode === 'access') return (ia.accessVlan != null && ia.accessVlan === ib.accessVlan) ? [ia.accessVlan] : []
   return []
 }
@@ -434,6 +455,8 @@ export function linkState(lab, l) {
   const dA = devs[l.a.dev], dB = devs[l.b.dev]
   if (isSwitch(dA) && isSwitch(dB)) {
     if (linkBlocked(lab, l)) return 'stp'
+    const iss = trunkIssues(lab, l)
+    if (iss && (iss.encap || iss.native)) return 'mis'
     return carriedVlans(lab, l).length ? 'ok' : 'mis'
   }
   const swSide = isSwitch(dA) ? l.a : l.b

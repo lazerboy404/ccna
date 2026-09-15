@@ -229,6 +229,7 @@ export default function TicketPanel() {
             <b>vlan 20</b> → <b>name VENTAS</b><br />
             <b>switchport mode access|trunk</b> · <b>switchport access vlan 20</b><br />
             <b>switchport trunk allowed vlan 20,30|all|add 30</b><br />
+            <b>switchport trunk native vlan 1</b> · <b>switchport trunk encapsulation dot1q</b><br />
             <b>spanning-tree portfast [trunk]</b> (destraba puerto STP)<br />
             <b>ip route 10.0.20.0 255.255.255.0 10.0.99.2</b> · <b>ip route 0.0.0.0 0.0.0.0 x.x.x.x</b><br />
             <b>router ospf 1</b> → <b>network 10.0.10.0 0.0.0.255 area 0</b><br />
@@ -237,6 +238,7 @@ export default function TicketPanel() {
             <b>ssid CORP vlan 20</b> (Access Point) · <b>show wlan</b> (SSIDs y clientes)<br />
             <b>show ip interface brief</b> · <b>show ip route</b> · <b>show vlan brief</b><br />
             <b>show interfaces trunk</b> · <b>show spanning-tree brief</b> · <b>show ip arp</b><br />
+            <b>show interface Gi0/2 switchport</b> · <b>copy running-config startup-config</b><br />
             <b>show access-lists</b> · <b>show port-security</b> · <b>show ip protocols</b><br />
             <b>show running-config</b> · <b>ping &lt;ip&gt;</b> · <b>hostname X</b><br />
             En equipos: <b>ipconfig</b> · <b>ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt;</b> · <b>ping &lt;ip&gt;</b><br />

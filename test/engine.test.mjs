@@ -130,6 +130,26 @@ test('causas nuevas: fábrica, IP duplicada, fuera de segmento, gateway y cable 
   }
 })
 
+test('troubleshooting de troncal: VLAN nativa y encapsulación 802.1Q', () => {
+  for (const key of ['i-native-vlan', 'i-encap']) {
+    const sc = SCENARIOS.find((s) => s.key === key)
+    const lab = buildLabFor(sc, 42)
+    assert.equal(evaluateGoals(lab).find((g) => g.id === 'g2').res.ok, false, key + ': Ventas debería fallar')
+    solve(lab)
+    assert.deepEqual(evaluateGoals(lab).filter((g) => !g.res.ok).map((g) => g.label), [], key + ': quedó algo sin resolver')
+  }
+})
+
+test('CLI: show interface switchport y copy running-config startup-config', () => {
+  const lab = plainLab(500)
+  const ctx = lab.ctx || (lab.ctx = { lab, sessions: {} })
+  run(lab, 'SW1', ['enable', 'configure terminal', 'interface Gi0/2', 'switchport trunk native vlan 20', 'switchport trunk encapsulation dot1q', 'end'])
+  run(lab, 'SW1', ['show interface Gi0/2 switchport'])
+  assert.ok(ctx.sessions.SW1.out.some((e) => /Native Mode VLAN: 20/.test(e.t)), 'show interface switchport debe mostrar la VLAN nativa')
+  run(lab, 'SW1', ['copy running-config startup-config'])
+  assert.ok(ctx.sessions.SW1.out.some((e) => /\[OK\]/.test(e.t)), 'copy run start debe confirmar [OK]')
+})
+
 test('CLI: show access-lists y show port-security no fallan', () => {
   const lab = plainLab(323)
   const ctx = lab.ctx || (lab.ctx = { lab, sessions: {} })

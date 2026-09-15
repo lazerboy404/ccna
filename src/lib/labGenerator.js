@@ -60,6 +60,12 @@ export const SCENARIOS = [
     story: s => '«La cámara de la entrada dejó de grabar; el resto de las cámaras y la red funcionan bien.» — Seguridad' },
   { key: 'a-srv-cam', diff: 'Avanzado', srv: true, cam: true, title: 'Servidor y cámara caídos', design: null, sw3: null, faultKeys: ['srv-wrong-vlan', 'cam-shut'],
     story: s => '«Dos reportes el mismo día: no podemos entrar a la aplicación del servidor y la cámara de la entrada no graba. Los dos equipos están en el cuarto del centro de cómputo.» — Mesa de ayuda' },
+  { key: 'i-native-vlan', diff: 'Intermedio', title: 'Ventas sin red', design: null, sw3: null, faultKeys: ['native-mismatch'],
+    story: s => '«En Ventas no abren nada desde que alguien tocó el aparato central; Soporte y Administración sí trabajan.» — Mesa de ayuda' },
+  { key: 'i-encap', diff: 'Intermedio', title: 'Ventas y Soporte sin red', design: null, sw3: null, faultKeys: ['encap-mismatch'],
+    story: s => '«Ventas y Soporte se quedaron sin red de repente; el aparato central tiene una luz anaranjada donde se conectan los cables.» — Soporte de TI' },
+  { key: 'a-vlan-trunk', diff: 'Avanzado', title: 'El troncal mal configurado', design: null, sw3: null, faultKeys: ['trunk-mode', 'native-mismatch'],
+    story: s => '«Después de mover equipo, Ventas y Soporte quedaron sin red por completo y un cable del aparato central se ve raro.» — Gerencia' },
   { key: 'i-cam-fabrica', diff: 'Básico', cam: true, title: 'La cámara que se mojó', design: null, sw3: null, faultKeys: ['cam-factory'],
     story: s => '«La cámara de la entrada dejó de grabar después de mojarse con la lluvia. La secaron y volvió a encender, pero ya no se ve en el sistema.» — Seguridad' },
   { key: 'i-cam-cable', diff: 'Básico', cam: true, title: 'Cable cortado', design: null, sw3: null, faultKeys: ['cam-cut'],
@@ -125,7 +131,7 @@ export function generateSpec(seed, sc) {
 }
 
 const rif = (ip, mask, desc) => ({ kind: 'routed', ip, mask, status: 'up', desc: desc || '' })
-const rport = (mode, vlan, allowed, desc) => ({ kind: 'port', mode, accessVlan: vlan !== undefined ? vlan : null, allowed: allowed || [], status: 'up', desc: desc || '' })
+const rport = (mode, vlan, allowed, desc) => ({ kind: 'port', mode, accessVlan: vlan !== undefined ? vlan : null, allowed: allowed || [], nativeVlan: 1, encap: 'dot1q', status: 'up', desc: desc || '' })
 const rsvi = (ip, mask) => ({ kind: 'svi', ip, mask, status: 'up' })
 
 export function buildDevices(s) {
@@ -422,6 +428,22 @@ export function makeFaults(s, rnd) {
       solution: [{ devId: 'SW1', cmds: ['enable', 'configure terminal', 'interface Gi0/6', 'no shutdown', 'end'] }],
       apply: (d) => { d.SW1.interfaces['Gi0/6'].status = 'down' } })
   }
+
+  F.push({ key: 'native-mismatch', design: null, title: 'VLAN nativa distinta en el troncal', category: 'VLAN / Trunking 802.1Q',
+    devId: 'SW1', port: 'Gi0/2',
+    symptom: 'El área de Ventas perdió la conexión con el resto de la red tras un cambio en el aparato central; Soporte sí tiene red.',
+    hints: ['En un enlace troncal la VLAN nativa debe coincidir en ambos extremos; si no coincide, esa VLAN deja de pasar bien.',
+      'Ejecuta show interfaces trunk en ' + n.sw1 + ' y en ' + n.sw2 + ' y compara la columna Native. Corrige con: switchport trunk native vlan 1.'],
+    solution: [{ devId: 'SW1', cmds: ['enable', 'configure terminal', 'interface Gi0/2', 'switchport trunk native vlan 1', 'end'] }],
+    apply: (d) => { const p = d.SW1.interfaces['Gi0/2']; p.mode = 'trunk'; p.nativeVlan = vv } })
+
+  F.push({ key: 'encap-mismatch', design: null, title: 'Encapsulación del troncal incorrecta', category: 'VLAN / Trunking 802.1Q',
+    devId: 'SW2', port: 'Gi0/1',
+    symptom: 'Ventas y Soporte perdieron toda la conexión con el resto de la red; el enlace entre aparatos se ve anaranjado.',
+    hints: ['Los dos extremos del enlace troncal deben usar el mismo encapsulado (802.1Q / dot1q).',
+      'Ejecuta show interfaces trunk: un extremo muestra una encapsulación distinta. Corrige con: switchport trunk encapsulation dot1q.'],
+    solution: [{ devId: 'SW2', cmds: ['enable', 'configure terminal', 'interface Gi0/1', 'switchport trunk encapsulation dot1q', 'end'] }],
+    apply: (d) => { const p = d.SW2.interfaces['Gi0/1']; p.mode = 'trunk'; p.encap = 'isl' } })
 
   F.push({ key: 'pc-wrong-gw', design: null, title: 'Puerta de enlace incorrecta en la PC', category: 'Configuración IP / Subredes',
     devId: 'PC2', port: null,

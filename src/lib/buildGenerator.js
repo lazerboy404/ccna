@@ -12,7 +12,7 @@ const SERVER_NAMES = ['SRV-APP', 'SRV-DB', 'SRV-FILE', 'SRV-MAIL', 'SRV-CCTV', '
 const CAMERA_NAMES = ['CAM-ENTRADA', 'CAM-PASILLO', 'CAM-ALMACEN', 'CAM-OFICINA', 'CAM-ESTACION', 'CAM-MUELLE', 'CAM-RACK']
 const VLAN_POOL = [50, 60, 70, 80, 90, 100, 110, 120, 150, 160, 170, 180, 190, 200]
 
-const port = (vlan, desc) => ({ kind: 'port', mode: 'access', accessVlan: vlan == null ? 1 : vlan, allowed: [], status: 'up', desc: desc || '' })
+const port = (vlan, desc) => ({ kind: 'port', mode: 'access', accessVlan: vlan == null ? 1 : vlan, allowed: [], nativeVlan: 1, encap: 'dot1q', status: 'up', desc: desc || '' })
 const addPorts = (d, names) => { for (const n of names) if (!d.interfaces[n]) d.interfaces[n] = port(1, 'Puerto disponible') }
 const ensureVlan1 = (d) => { if (d.vlans) d.vlans[1] = d.vlans[1] || 'default' }
 const pick = (rnd, a) => a[Math.floor(rnd() * a.length)]
