@@ -60,6 +60,22 @@ export const SCENARIOS = [
     story: s => '«La cámara de la entrada dejó de grabar; el resto de las cámaras y la red funcionan bien.» — Seguridad' },
   { key: 'a-srv-cam', diff: 'Avanzado', srv: true, cam: true, title: 'Servidor y cámara caídos', design: null, sw3: null, faultKeys: ['srv-wrong-vlan', 'cam-shut'],
     story: s => '«Dos reportes el mismo día: no podemos entrar a la aplicación del servidor y la cámara de la entrada no graba. Los dos equipos están en el cuarto del centro de cómputo.» — Mesa de ayuda' },
+  { key: 'i-cam-fabrica', diff: 'Básico', cam: true, title: 'La cámara que se mojó', design: null, sw3: null, faultKeys: ['cam-factory'],
+    story: s => '«La cámara de la entrada dejó de grabar después de mojarse con la lluvia. La secaron y volvió a encender, pero ya no se ve en el sistema.» — Seguridad' },
+  { key: 'i-cam-cable', diff: 'Básico', cam: true, title: 'Cable cortado', design: null, sw3: null, faultKeys: ['cam-cut'],
+    story: s => '«La cámara de la entrada no graba; parece que alguien trozó el cable al mover unas cajas. Todo lo demás funciona.» — Seguridad' },
+  { key: 'i-cam-dup', diff: 'Intermedio', cam: true, title: 'Números repetidos', design: null, sw3: null, faultKeys: ['cam-dupip'],
+    story: s => '«La cámara de la entrada graba a ratos y una computadora de Soporte empezó a fallar. Creo que a dos equipos les quedaron los mismos números.» — Soporte de TI' },
+  { key: 'i-cam-fuera', diff: 'Intermedio', cam: true, title: 'Cámara en otro segmento', design: null, sw3: null, faultKeys: ['cam-offsubnet'],
+    story: s => '«La cámara de la entrada no aparece en el sistema desde que la reinstalaron en otro poste. Tiene luz, pero no se ve.» — Seguridad' },
+  { key: 'i-srv-fabrica', diff: 'Intermedio', srv: true, title: 'El servidor quedó de fábrica', design: null, sw3: null, faultKeys: ['srv-factory'],
+    story: s => '«La aplicación dejó de responder después de un corte de luz. El servidor está encendido, pero quedó como recién salido de caja.» — Sistemas' },
+  { key: 'i-gw-malo', diff: 'Intermedio', title: 'Internet a medias', design: null, sw3: null, faultKeys: ['pc-wrong-gw'],
+    story: s => '«En una computadora de Ventas abro las cosas de la oficina, pero no las páginas de internet. En las demás computadoras sí.» — Mesa de ayuda' },
+  { key: 'a-cam-pc', diff: 'Avanzado', cam: true, title: 'Cámara y computadora', design: null, sw3: null, faultKeys: ['cam-cut', 'pc-wrong-gw'],
+    story: s => '«Dos reportes: la cámara de la entrada no graba (parece que trozaron el cable) y una computadora de Ventas no abre internet. Lo demás funciona.» — Mesa de ayuda' },
+  { key: 'a-srv-fuera', diff: 'Avanzado', srv: true, title: 'Servidor y computadora', design: null, sw3: null, faultKeys: ['srv-offsubnet', 'pc-wrong-gw'],
+    story: s => '«Después de mover equipo, el servidor quedó inalcanzable y una computadora de Ventas no abre internet. El resto trabaja bien.» — Gerencia' },
   { key: 'sorpresa', diff: 'Mixto', title: 'Incidente sin clasificar', design: null, sw3: null, faultKeys: null,
     story: s => '«La red no sirve bien. Hay varios reportes sueltos y nadie sabe por dónde empezar. Revísalo tú, por favor.» — Mesa de ayuda' },
 ]
@@ -405,6 +421,69 @@ export function makeFaults(s, rnd) {
         'En ' + n.sw1 + ' ejecuta show ip interface brief: reactiva Gi0/6 con no shutdown.'],
       solution: [{ devId: 'SW1', cmds: ['enable', 'configure terminal', 'interface Gi0/6', 'no shutdown', 'end'] }],
       apply: (d) => { d.SW1.interfaces['Gi0/6'].status = 'down' } })
+  }
+
+  F.push({ key: 'pc-wrong-gw', design: null, title: 'Puerta de enlace incorrecta en la PC', category: 'Configuración IP / Subredes',
+    devId: 'PC2', port: null,
+    symptom: 'La PC de Ventas tiene su dirección y máscara correctas, pero no sale a nada fuera de su red; las demás áreas sí navegan.',
+    hints: ['El equipo tiene dirección válida pero no sabe por dónde salir: revisa su puerta de enlace.',
+      'Abre la consola de la PC de Ventas y usa ipconfig: la puerta de enlace debe ser ' + nets.ventas.gw + '. Corrige con: ip ' + s.pcs.ventas + ' ' + M24 + ' ' + nets.ventas.gw + '.'],
+    solution: [{ devId: 'PC2', cmds: ['ip ' + s.pcs.ventas + ' ' + M24 + ' ' + nets.ventas.gw] }],
+    apply: (d) => { d.PC2.pc = { ip: s.pcs.ventas, mask: M24, gw: '10.' + B + '.20.254' } } })
+
+  if (s.topo.srv) {
+    F.push({ key: 'srv-factory', design: null, title: 'Servidor restablecido de fábrica', category: 'Configuración IP / Subredes',
+      devId: 'SRV1', port: null,
+      symptom: 'El servidor de aplicaciones dejó de responder tras un corte; quedó con la configuración de fábrica (dirección por defecto).',
+      hints: ['El servidor tiene enlace pero su dirección no pertenece a la red del sitio: parece recién restablecido.',
+        'Abre la consola del servidor y usa ipconfig; asígnale la dirección del plan: ip 10.' + B + '.10.20 ' + M24 + ' ' + nets.admin.gw + '.'],
+      solution: [{ devId: 'SRV1', cmds: ['ip 10.' + B + '.10.20 ' + M24 + ' ' + nets.admin.gw] }],
+      apply: (d) => { d.SRV1.pc = { ip: '192.168.0.20', mask: M24, gw: '192.168.0.1' } } })
+    F.push({ key: 'srv-dupip', design: null, title: 'IP duplicada del servidor', category: 'Configuración IP / Subredes',
+      devId: 'SRV1', port: null,
+      symptom: 'El servidor responde de forma intermitente y la PC de Administración "choca": alguien duplicó direcciones.',
+      hints: ['Dos equipos de la misma red tienen la misma dirección IP; eso rompe la comunicación de ambos.',
+        'Revisa con ipconfig: el servidor debe usar 10.' + B + '.10.20 (no la de PC-ADMIN). Corrige con: ip 10.' + B + '.10.20 ' + M24 + ' ' + nets.admin.gw + '.'],
+      solution: [{ devId: 'SRV1', cmds: ['ip 10.' + B + '.10.20 ' + M24 + ' ' + nets.admin.gw] }],
+      apply: (d) => { d.SRV1.pc = { ip: s.pcs.admin, mask: M24, gw: nets.admin.gw } } })
+    F.push({ key: 'srv-offsubnet', design: null, title: 'Servidor fuera del segmento', category: 'Configuración IP / Subredes',
+      devId: 'SRV1', port: null,
+      symptom: 'El servidor tiene dirección, pero quedó en un segmento que no corresponde al sitio y nadie lo alcanza.',
+      hints: ['La dirección del servidor no está en la subred del sitio; su puerta de enlace queda fuera de su red.',
+        'Usa ipconfig en el servidor: debe ser 10.' + B + '.10.20 ' + M24 + ' con gateway ' + nets.admin.gw + '.'],
+      solution: [{ devId: 'SRV1', cmds: ['ip 10.' + B + '.10.20 ' + M24 + ' ' + nets.admin.gw] }],
+      apply: (d) => { d.SRV1.pc = { ip: '10.' + B + '.99.50', mask: M24, gw: nets.admin.gw } } })
+  }
+  if (s.topo.cam) {
+    F.push({ key: 'cam-factory', design: null, title: 'Cámara restablecida de fábrica', category: 'Configuración IP / Subredes',
+      devId: 'CAM1', port: null,
+      symptom: 'La cámara de seguridad se mojó y al secarse volvió con la configuración de fábrica; ya no graba.',
+      hints: ['La cámara tiene enlace pero su dirección no es la del sitio (quedó por defecto): parece recién restablecida.',
+        'Abre la consola de la cámara y usa ipconfig; asígnale su dirección del plan: ip 10.' + B + '.30.20 ' + M24 + ' ' + nets.soporte.gw + '.'],
+      solution: [{ devId: 'CAM1', cmds: ['ip 10.' + B + '.30.20 ' + M24 + ' ' + nets.soporte.gw] }],
+      apply: (d) => { d.CAM1.pc = { ip: '192.168.0.50', mask: M24, gw: '192.168.0.1' } } })
+    F.push({ key: 'cam-dupip', design: null, title: 'IP duplicada de la cámara', category: 'Configuración IP / Subredes',
+      devId: 'CAM1', port: null,
+      symptom: 'La cámara deja de grabar a ratos y una computadora de Soporte empezó a fallar: hay direcciones repetidas en esa red.',
+      hints: ['Dos equipos comparten la misma dirección IP en la misma red; ambos pierden conectividad.',
+        'Compara con ipconfig: la cámara debe usar 10.' + B + '.30.20 (no la de la PC de Soporte). Corrige con: ip 10.' + B + '.30.20 ' + M24 + ' ' + nets.soporte.gw + '.'],
+      solution: [{ devId: 'CAM1', cmds: ['ip 10.' + B + '.30.20 ' + M24 + ' ' + nets.soporte.gw] }],
+      apply: (d) => { d.CAM1.pc = { ip: s.pcs.soporte, mask: M24, gw: nets.soporte.gw } } })
+    F.push({ key: 'cam-offsubnet', design: null, title: 'Cámara fuera del segmento', category: 'Configuración IP / Subredes',
+      devId: 'CAM1', port: null,
+      symptom: 'La cámara de seguridad quedó inalcanzable: tiene dirección, pero en un segmento que no es el de las cámaras.',
+      hints: ['La dirección de la cámara no pertenece a la subred del sitio; su puerta de enlace queda fuera de su red.',
+        'Usa ipconfig en la cámara: debe ser 10.' + B + '.30.20 ' + M24 + ' con gateway ' + nets.soporte.gw + '.'],
+      solution: [{ devId: 'CAM1', cmds: ['ip 10.' + B + '.30.20 ' + M24 + ' ' + nets.soporte.gw] }],
+      apply: (d) => { d.CAM1.pc = { ip: '10.' + B + '.99.60', mask: M24, gw: nets.soporte.gw } } })
+    F.push({ key: 'cam-cut', design: null, title: 'Cable de la cámara cortado', category: 'Cableado',
+      devId: 'CAM1', port: null,
+      symptom: 'La cámara de la entrada dejó de grabar; en el diagrama el cable aparece rojo, como si estuviera dañado.',
+      hints: ['No es un apagado del puerto: el enlace aparece con el cable "roto". Hay que reemplazar el cable.',
+        'Activa 🔌 Cablear, haz clic sobre el cable rojo de la cámara para retirarlo y vuelve a conectar SW1 Gi0/6 con la cámara.'],
+      solution: [{ devId: 'CAM1', cmds: ['# Con 🔌 Cablear: clic en el cable rojo de la cámara para retirarlo y reconéctalo entre SW1 Gi0/6 y CAM1.'] }],
+      repair: (lab) => { const l = lab.links.find((x) => x.id === 'L11'); if (l) l.broken = false },
+      apply: (d, links) => { const l = links.find((x) => x.id === 'L11'); if (l) l.broken = true } })
   }
 
   if (s.topo.sw3) {

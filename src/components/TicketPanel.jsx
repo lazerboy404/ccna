@@ -239,7 +239,8 @@ export default function TicketPanel() {
             <b>show interfaces trunk</b> · <b>show spanning-tree brief</b> · <b>show ip arp</b><br />
             <b>show access-lists</b> · <b>show port-security</b> · <b>show ip protocols</b><br />
             <b>show running-config</b> · <b>ping &lt;ip&gt;</b> · <b>hostname X</b><br />
-            En PCs: <b>ipconfig</b> · <b>ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt;</b> · <b>ping &lt;ip&gt;</b>
+            En equipos: <b>ipconfig</b> · <b>ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt;</b> · <b>ping &lt;ip&gt;</b><br />
+            🔌 <b>Cablear</b>: clic en un equipo para conectar; clic en un cable para retirarlo/reemplazarlo.
           </div>
         </details>
       </Panel>

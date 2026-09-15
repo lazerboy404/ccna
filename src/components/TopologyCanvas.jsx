@@ -96,7 +96,7 @@ function Icon({ type }) {
 }
 
 const LED_COLOR = { ok: '#22c55e', warn: '#f59e0b', down: '#ef4444' }
-const LINK_CLASS = { ok: 'lk-ok', down: 'lk-down', stp: 'lk-stp', mis: 'lk-mis' }
+const LINK_CLASS = { ok: 'lk-ok', down: 'lk-down', stp: 'lk-stp', mis: 'lk-mis', cut: 'lk-cut' }
 
 function LinkTag({ x, y, children }) {
   return (
@@ -123,7 +123,7 @@ function portLabelAt(P, Q, dev, port) {
 }
 
 export default function TopologyCanvas() {
-  const { lab, active, setActive, cabling, connect } = useNetwork()
+  const { lab, active, setActive, cabling, connect, disconnect } = useNetwork()
   const [posMap, setPosMap] = useState(() => Object.assign({}, lab.positions))
   const [cableType, setCableType] = useState('auto')
   const [src, setSrc] = useState(null)
@@ -221,7 +221,7 @@ export default function TopologyCanvas() {
             </button>
           ))}
           <span className="text-[11px] text-[#b9a8e6]">
-            {src ? <>Origen <b>{srcDev.name} {src.port}</b> — ahora haz clic en el otro equipo y elige su puerto.</> : 'Haz clic en un equipo y elige el puerto en la ventana.'}
+            {src ? <>Origen <b>{srcDev.name} {src.port}</b> — ahora haz clic en el otro equipo y elige su puerto.</> : 'Clic en un equipo para conectar un cable, o clic en un cable para retirarlo/reemplazarlo.'}
           </span>
           {src && <button onClick={() => setSrc(null)} className="ml-auto rounded-md border border-violet-700 bg-[#2a1b4d] px-2 py-0.5 text-[11px] font-semibold">Cancelar</button>}
         </div>
@@ -233,6 +233,7 @@ export default function TopologyCanvas() {
           const state = linkState(lab, l)
           const dA = lab.devices[l.a.dev], dB = lab.devices[l.b.dev]
           const detail = state === 'down' ? 'CAÍDO — revisa shutdown/enlace físico'
+            : state === 'cut' ? 'CABLE DAÑADO / desconectado — reemplázalo con el botón 🔌 (clic en el cable)'
             : state === 'stp' ? 'BLOQUEADO por STP'
             : state === 'mis' ? 'VLAN MISMATCH (modos/trunk incompatibles)'
             : 'UP/UP'
@@ -241,6 +242,12 @@ export default function TopologyCanvas() {
               <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} className={'link ' + LINK_CLASS[state] + (l.kind === 'wifi' ? ' lk-wifi' : '')}>
                 <title>{dA.name + ' (' + (l.a.port || 'NIC') + ') ↔ ' + dB.name + ' (' + (l.b.port || 'NIC') + ')\n' + l.label + ' — ' + detail}</title>
               </line>
+              {cabling && (
+                <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="transparent" strokeWidth="16" style={{ cursor: 'pointer' }}
+                  onClick={(e) => { e.stopPropagation(); disconnect(l.id) }}>
+                  <title>Clic para retirar/reemplazar este cable</title>
+                </line>
+              )}
               <text x={(pa.x + pb.x) / 2} y={(pa.y + pb.y) / 2 - 6} className="portlabel" fontSize="9" textAnchor="middle" fill="#8fb0d4" stroke="#070d1a" strokeWidth="2.6" strokeLinejoin="round" style={{ paintOrder: 'stroke' }}>{l.label}</text>
             </g>
           )
@@ -308,8 +315,8 @@ export default function TopologyCanvas() {
       <div className="flex flex-wrap gap-4 px-2 pt-2 pb-1 text-sim-muted text-xs">
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#22c55e' }} /> Up/Up (verde)</span>
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#ef4444' }} /> Down / shutdown / falla (rojo)</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#f59e0b' }} /> STP o VLAN mismatch (naranja)</span>
-        <span className="ml-auto">{cabling ? '🔌 Elige cable y haz clic en un equipo' : 'Clic = consola · Arrastra los equipos para acomodarlos'}</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#f59e0b' }} /> STP, VLAN mismatch o cable dañado (naranja)</span>
+        <span className="ml-auto">{cabling ? '🔌 Clic en un equipo para cablear · clic en un cable para retirarlo' : 'Clic = consola · Arrastra los equipos para acomodarlos'}</span>
       </div>
     </div>
   )

@@ -10,18 +10,22 @@ function buildLabFor(sc, seed) {
   const spec = generateSpec(seed, sc)
   const faults = scenarioFaults(spec, sc)
   const devices = buildDevices(spec)
-  faults.forEach((f) => f.apply(devices))
-  const lab = { spec, scenario: sc, devices, links: buildLinks(spec), faults, goals: buildGoals(spec), hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null }
+  const links = buildLinks(spec)
+  faults.forEach((f) => f.apply(devices, links))
+  const lab = { spec, scenario: sc, devices, links, faults, goals: buildGoals(spec), hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null }
   recompute(lab)
   return lab
 }
 function run(lab, devId, cmds) {
   const ctx = lab.ctx || (lab.ctx = { lab, sessions: {} })
-  for (const cmd of cmds) execCommand(ctx, devId, cmd)
+  for (const cmd of cmds) if (!cmd.trim().startsWith('#')) execCommand(ctx, devId, cmd)
   recompute(lab)
 }
 function solve(lab) {
-  for (const f of lab.faults) for (const st of f.solution) run(lab, st.devId, st.cmds)
+  for (const f of lab.faults) {
+    if (f.repair) f.repair(lab)
+    for (const st of f.solution) run(lab, st.devId, st.cmds)
+  }
 }
 function plainLab(seed, sc) {
   const spec = generateSpec(seed, sc || SCENARIOS[0])
@@ -96,6 +100,26 @@ test('CLI: la ACL tiene deny implícito al final', () => {
 
 test('fallas de servidor y cámara rompen su objetivo y se resuelven', () => {
   for (const [key, brokenId] of [['i-servidor', 'g9'], ['i-camara', 'g11']]) {
+    const sc = SCENARIOS.find((s) => s.key === key)
+    const lab = buildLabFor(sc, 777)
+    const before = evaluateGoals(lab).find((g) => g.id === brokenId)
+    assert.equal(before.res.ok, false, key + ': el objetivo ' + brokenId + ' debería fallar')
+    solve(lab)
+    const failed = evaluateGoals(lab).filter((g) => !g.res.ok)
+    assert.deepEqual(failed.map((g) => g.label), [], key + ': quedó algo sin resolver')
+  }
+})
+
+test('causas nuevas: fábrica, IP duplicada, fuera de segmento, gateway y cable cortado', () => {
+  const cases = [
+    ['i-cam-fabrica', 'g11'],
+    ['i-cam-dup', 'g11'],
+    ['i-cam-fuera', 'g11'],
+    ['i-cam-cable', 'g11'],
+    ['i-srv-fabrica', 'g9'],
+    ['i-gw-malo', 'g4'],
+  ]
+  for (const [key, brokenId] of cases) {
     const sc = SCENARIOS.find((s) => s.key === key)
     const lab = buildLabFor(sc, 777)
     const before = evaluateGoals(lab).find((g) => g.id === brokenId)

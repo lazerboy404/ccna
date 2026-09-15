@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { mulberry32, hasCli } from '../lib/utils.js'
 import { generateSpec, pickScenario, buildDevices, buildLinks, buildGoals, scenarioFaults, TOPO_ORDER } from '../lib/labGenerator.js'
 import { generateConstructionLab } from '../lib/buildGenerator.js'
-import { recompute, evaluateGoals, connectPorts, positionsFor } from '../lib/engine.js'
+import { recompute, evaluateGoals, connectPorts, positionsFor, disconnectLink } from '../lib/engine.js'
 import { execCommand, ensureConsole } from '../lib/cli.js'
 
 const SKEY = 'ccna_sim_stats_v1'
@@ -28,8 +28,9 @@ export function buildLab(seed, pref) {
   const spec = generateSpec(seed >>> 0, sc)
   const faults = scenarioFaults(spec, sc)
   const devices = buildDevices(spec)
-  faults.forEach((f) => f.apply(devices))
-  const lab = { spec, scenario: sc, devices, links: buildLinks(spec), faults, goals: buildGoals(spec), hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null }
+  const links = buildLinks(spec)
+  faults.forEach((f) => f.apply(devices, links))
+  const lab = { spec, scenario: sc, devices, links, faults, goals: buildGoals(spec), hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null }
   lab.order = TOPO_ORDER.filter((id) => !!devices[id]).concat(Object.keys(devices).filter((id) => !TOPO_ORDER.includes(id)))
   lab.positions = positionsFor(spec)
   recompute(lab)
@@ -111,8 +112,10 @@ export function NetworkProvider({ children }) {
       return
     }
     const devices = buildDevices(lab.spec)
-    lab.faults.forEach((f) => f.apply(devices))
+    const links = buildLinks(lab.spec)
+    lab.faults.forEach((f) => f.apply(devices, links))
     lab.devices = devices
+    lab.links = links
     lab.solved = false
     lab.attempted = false
     lab.hintsUsed = 0
@@ -177,10 +180,16 @@ export function NetworkProvider({ children }) {
     return false
   }, [lab, toast, bump])
 
+  const disconnect = useCallback((linkId) => {
+    if (!disconnectLink(lab, linkId)) return
+    toast('🔌 Cable retirado. Vuelve a conectarlo (botón Cablear) en los puertos correctos.', 'ok')
+    bump()
+  }, [lab, toast, bump])
+
   const value = {
     lab, tick, active, sessions: sessionsRef.current, stats, toasts, validation, goalsResults,
     setActive, run, giveHint, revealSolution, resetLab, newLab, validate, closeValidation, setPref, toast,
-    cabling, toggleCabling, connect,
+    cabling, toggleCabling, connect, disconnect,
   }
   return <NetworkContext.Provider value={value}>{children}</NetworkContext.Provider>
 }

@@ -26,6 +26,7 @@ button { font-family: inherit; cursor: pointer; }
 .lk-down { stroke: #ef4444; filter: drop-shadow(0 0 4px #ef444477); }
 .lk-mis { stroke: #f59e0b; filter: drop-shadow(0 0 4px #f59e0b66); }
 .lk-stp { stroke: #f59e0b; stroke-dasharray: 7 6; filter: drop-shadow(0 0 4px #f59e0b66); }
+.lk-cut { stroke: #ef4444; stroke-dasharray: 2 7; stroke-width: 4; filter: drop-shadow(0 0 4px #ef444477); }
 .lk-wifi { stroke-dasharray: 3 5; }
 
 /* Scrollbar de la terminal */

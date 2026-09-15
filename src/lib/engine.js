@@ -24,10 +24,25 @@ export function portUp(lab, devId, port) {
   if (!physUp(lab, devId, port)) return false
   const lk = linkOf(lab, devId, port)
   if (!lk) return true
+  if (lk.broken) return false
   const o = otherSide(lk, devId)
   const od = lab.devices[o.dev]
   if (isEndpoint(od) || !o.port) return true
   return physUp(lab, o.dev, o.port)
+}
+
+export function findDupIp(lab, ip) {
+  if (!ip) return null
+  const hits = Object.values(lab.devices).filter((d) => d.pc && d.pc.ip === ip)
+  return hits.length > 1 ? hits : null
+}
+
+export function disconnectLink(lab, linkId) {
+  const i = lab.links.findIndex((l) => l.id === linkId)
+  if (i < 0) return false
+  lab.links.splice(i, 1)
+  recompute(lab)
+  return true
 }
 export function pcUp(lab, pcId) {
   const lk = pcLinkOf(lab, pcId)
@@ -112,7 +127,7 @@ export function recompute(lab) {
     }
   }
   for (const l of links) {
-    if (l.kind !== 'eth') continue
+    if (l.kind !== 'eth' || l.broken) continue
     const dA = devs[l.a.dev], dB = devs[l.b.dev]
     const swA = isSwitch(dA), swB = isSwitch(dB)
     if (swA && swB) {
@@ -139,7 +154,7 @@ export function recompute(lab) {
     }
   }
   for (const l of links) {
-    if (l.kind !== 'wifi') continue
+    if (l.kind !== 'wifi' || l.broken) continue
     const apSide = devs[l.a.dev] && devs[l.a.dev].type === 'ap' ? l.a : l.b
     const clSide = apSide === l.a ? l.b : l.a
     const ap = devs[apSide.dev], client = devs[clSide.dev]
@@ -346,6 +361,12 @@ export function pingSim(lab, srcId, dstIp) {
   if (!d) return { ok: false, reason: 'Dispositivo desconocido' }
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(String(dstIp))) return { ok: false, reason: 'Dirección IP inválida' }
   if (isEndpoint(d)) {
+    const dup = findDupIp(lab, d.pc.ip)
+    if (dup) return { ok: false, reason: d.name + ': la IP ' + d.pc.ip + ' está duplicada con ' + dup.filter((x) => x.id !== d.id).map((x) => x.name).join(', ') + ' — corrige el direccionamiento' }
+  }
+  const dupDst = findDupIp(lab, dstIp)
+  if (dupDst) return { ok: false, reason: 'La IP destino ' + dstIp + ' está duplicada (' + dupDst.map((x) => x.name).join(', ') + ') — corrige el direccionamiento' }
+  if (isEndpoint(d)) {
     if (!pcUp(lab, d.id)) return { ok: false, reason: d.name + ': sin enlace a la red (cable/AP caído o VLAN inexistente)' }
     const p = d.pc
     if (!inSubnet(p.gw, netOf(p.ip, p.mask), p.mask) && !inSubnet(dstIp, netOf(p.ip, p.mask), p.mask)) {
@@ -397,6 +418,7 @@ export function allPing(lab, srcs, dst) {
 
 export function linkState(lab, l) {
   const devs = lab.devices
+  if (l.broken) return 'cut'
   if (l.kind === 'wifi') {
     const apSide = devs[l.a.dev] && devs[l.a.dev].type === 'ap' ? l.a : l.b
     const clSide = apSide === l.a ? l.b : l.a
