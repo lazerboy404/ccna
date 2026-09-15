@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNetwork } from '../context/NetworkContext.jsx'
 import { linkState, deviceHealth, freePorts, cableKindOf, CABLE_LABEL } from '../lib/engine.js'
+import { isSwitch } from '../lib/utils.js'
 import { typeLabel } from './icons.jsx'
 
 function Icon({ type }) {
@@ -122,8 +123,18 @@ function portLabelAt(P, Q, dev, port) {
   return { x, y, text: port }
 }
 
+function WifiPulse({ ap, hot }) {
+  return (
+    <g>
+      <circle cx={ap.x} cy={ap.y} r="10" className={'wifi-pulse' + (hot ? ' hot' : '')} />
+      <circle cx={ap.x} cy={ap.y} r="10" className={'wifi-pulse d2' + (hot ? ' hot' : '')} />
+    </g>
+  )
+}
+
 export default function TopologyCanvas() {
-  const { lab, active, setActive, cabling, connect, disconnect } = useNetwork()
+  const { lab, active, setActive, cabling, connect, disconnect, trace } = useNetwork()
+  const [anim, setAnim] = useState(true)
   const [posMap, setPosMap] = useState(() => Object.assign({}, lab.positions))
   const [cableType, setCableType] = useState('auto')
   const [src, setSrc] = useState(null)
@@ -242,14 +253,25 @@ export default function TopologyCanvas() {
               <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} className={'link ' + LINK_CLASS[state] + (l.kind === 'wifi' ? ' lk-wifi' : '')}>
                 <title>{dA.name + ' (' + (l.a.port || 'NIC') + ') ↔ ' + dB.name + ' (' + (l.b.port || 'NIC') + ')\n' + l.label + ' — ' + detail}</title>
               </line>
-              {state === 'ok' && (() => {
+              {state === 'ok' && anim && (() => {
+                const hot = active && (l.a.dev === active || l.b.dev === active)
+                const isTrace = trace.includes(l.id)
+                if (l.kind === 'wifi') {
+                  const ap = lab.devices[l.a.dev] && lab.devices[l.a.dev].type === 'ap' ? pa : pb
+                  return <WifiPulse ap={ap} hot={hot || isTrace} />
+                }
+                const trunk = isSwitch(lab.devices[l.a.dev]) && isSwitch(lab.devices[l.b.dev])
+                const dur = isTrace ? '0.45s' : hot ? '0.6s' : trunk ? '0.8s' : '1.5s'
+                const color = isTrace ? '#67e8f9' : hot ? '#e2f7ff' : '#d1fae5'
+                const w = isTrace ? 4.4 : hot ? 4 : 3.2
                 const dx = pb.x - pa.x, dy = pb.y - pa.y
                 const len = Math.hypot(dx, dy) || 1
-                const nx = (-dy / len) * 1.8, ny = (dx / len) * 1.8
+                const nx = (-dy / len) * 1.9, ny = (dx / len) * 1.9
+                const cls = 'link-flow' + (isTrace ? ' link-flow-trace' : '') + (hot ? ' link-flow-hot' : '')
                 return (
                   <>
-                    <line x1={pa.x + nx} y1={pa.y + ny} x2={pb.x + nx} y2={pb.y + ny} className="link-flow" />
-                    <line x1={pa.x - nx} y1={pa.y - ny} x2={pb.x - nx} y2={pb.y - ny} className="link-flow link-flow-rev" />
+                    <line x1={pa.x + nx} y1={pa.y + ny} x2={pb.x + nx} y2={pb.y + ny} className={cls} style={{ animationDuration: dur, stroke: color, strokeWidth: w }} />
+                    <line x1={pa.x - nx} y1={pa.y - ny} x2={pb.x - nx} y2={pb.y - ny} className={cls + ' link-flow-rev'} style={{ animationDuration: dur, stroke: color, strokeWidth: w }} />
                   </>
                 )
               })()}
@@ -328,6 +350,10 @@ export default function TopologyCanvas() {
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#ef4444' }} /> Down / shutdown / falla (rojo)</span>
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#f59e0b' }} /> STP, VLAN mismatch o cable dañado (naranja)</span>
         <span className="ml-auto">{cabling ? '🔌 Clic en un equipo para cablear · clic en un cable para retirarlo' : 'Clic = consola · Arrastra los equipos para acomodarlos'}</span>
+        <button onClick={() => setAnim((a) => !a)}
+          className={'rounded-md border px-2 py-0.5 text-[11px] font-semibold ' + (anim ? 'border-cyan-800 bg-[#0d2b3a] text-cyan-200' : 'border-sim-border bg-[#12213d] text-sim-muted')}>
+          🎞 Animación: {anim ? 'on' : 'off'}
+        </button>
       </div>
     </div>
   )

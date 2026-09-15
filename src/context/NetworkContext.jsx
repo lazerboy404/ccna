@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { mulberry32, hasCli } from '../lib/utils.js'
 import { generateSpec, pickScenario, buildDevices, buildLinks, buildGoals, scenarioFaults, TOPO_ORDER } from '../lib/labGenerator.js'
 import { generateConstructionLab } from '../lib/buildGenerator.js'
-import { recompute, evaluateGoals, connectPorts, positionsFor, disconnectLink } from '../lib/engine.js'
+import { recompute, evaluateGoals, connectPorts, positionsFor, disconnectLink, pingSim, linkBetween } from '../lib/engine.js'
 import { execCommand, ensureConsole } from '../lib/cli.js'
 
 const SKEY = 'ccna_sim_stats_v1'
@@ -53,6 +53,8 @@ export function NetworkProvider({ children }) {
   const [validation, setValidation] = useState(null)
   const [toasts, setToasts] = useState([])
   const [cabling, setCabling] = useState(false)
+  const [trace, setTrace] = useState([])
+  const traceTimer = useRef(null)
 
   const bump = useCallback(() => setTick((t) => t + 1), [])
   const toast = useCallback((msg, kind) => {
@@ -80,8 +82,22 @@ export function NetworkProvider({ children }) {
 
   const run = useCallback((devId, line) => {
     execCommand(ctx, devId, line)
+    const m = /^ping\s+(\S+)/i.exec(String(line).trim())
+    if (m) {
+      const r = pingSim(lab, devId, m[1])
+      const ids = []
+      if (r.ok && r.hops && r.hops.length > 1) {
+        for (let i = 0; i < r.hops.length - 1; i++) {
+          const lk = linkBetween(lab, r.hops[i], r.hops[i + 1])
+          if (lk) ids.push(lk.id)
+        }
+      }
+      setTrace(ids)
+      if (traceTimer.current) clearTimeout(traceTimer.current)
+      traceTimer.current = setTimeout(() => setTrace([]), 3500)
+    }
     bump()
-  }, [ctx, bump])
+  }, [ctx, bump, lab])
 
   const giveHint = useCallback(() => {
     const all = []
@@ -110,6 +126,7 @@ export function NetworkProvider({ children }) {
       setActiveState(null)
       setValidation(null)
       setCabling(false)
+      setTrace([])
       bump()
       toast('↺ Construcción reiniciada: topología y VLAN en blanco.')
       return
@@ -140,6 +157,7 @@ export function NetworkProvider({ children }) {
     setActiveState(null)
     setValidation(null)
     setCabling(false)
+    setTrace([])
     bump()
     toast('🎫 ' + nl.spec.ticket.id + ' — ' + nl.scenario.title + ' (' + nl.scenario.diff + ') · Sucursal ' + nl.spec.site)
   }, [lab, stats.pref, bump, toast])
@@ -193,7 +211,7 @@ export function NetworkProvider({ children }) {
   const value = {
     lab, tick, active, sessions: sessionsRef.current, stats, toasts, validation, goalsResults,
     setActive, run, giveHint, revealSolution, resetLab, newLab, validate, closeValidation, setPref, toast,
-    cabling, toggleCabling, connect, disconnect,
+    cabling, toggleCabling, connect, disconnect, trace,
   }
   return <NetworkContext.Provider value={value}>{children}</NetworkContext.Provider>
 }

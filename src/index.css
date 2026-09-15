@@ -29,15 +29,24 @@ button { font-family: inherit; cursor: pointer; }
 .lk-cut { stroke: #ef4444; stroke-dasharray: 2 7; stroke-width: 4; filter: drop-shadow(0 0 4px #ef444477); }
 .lk-wifi { stroke-dasharray: 3 5; }
 
-/* Animación de datos fluyendo por los enlaces activos (bidireccional) */
-@keyframes flow { to { stroke-dashoffset: -32; } }
+/* Datos fluyendo por los enlaces activos: puntos bidireccionales (velocidad por estilo inline) */
+@keyframes flow { to { stroke-dashoffset: -28; } }
 .link-flow {
-  stroke: #d1fae5; stroke-width: 1.7; stroke-linecap: round;
-  stroke-dasharray: 4 12; pointer-events: none;
-  animation: flow 0.9s linear infinite;
+  stroke: #d1fae5; stroke-width: 3.2; stroke-linecap: round;
+  stroke-dasharray: 0.1 14; pointer-events: none;
+  animation: flow 1s linear infinite;
 }
 .link-flow-rev { animation-direction: reverse; }
-@media (prefers-reduced-motion: reduce) { .link-flow { animation: none; } }
+.link-flow-trace { filter: drop-shadow(0 0 5px #67e8f9); }
+.link-flow-hot { filter: drop-shadow(0 0 5px #dff6ff); }
+
+/* Ondas de radio del Access Point */
+@keyframes wifiPulse { from { r: 8; opacity: 0.85; } to { r: 32; opacity: 0; } }
+.wifi-pulse { fill: none; stroke: #7dd3fc; stroke-width: 1.6; pointer-events: none; animation: wifiPulse 1.8s ease-out infinite; }
+.wifi-pulse.d2 { animation-delay: 0.9s; }
+.wifi-pulse.hot { stroke: #e2f7ff; }
+
+@media (prefers-reduced-motion: reduce) { .link-flow, .wifi-pulse { animation: none; } }
 
 /* Scrollbar de la terminal */
 .term-scroll::-webkit-scrollbar { width: 9px; }

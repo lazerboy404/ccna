@@ -361,7 +361,8 @@ export function aclAppliesOn(d, name) {
   return (d.aclApply || []).filter((a) => a.name === name).map((a) => a.iface + ' ' + a.dir)
 }
 
-export function routeFrom(lab, d, dst, trail, srcIp, inIface, proto, port) {
+export function routeFrom(lab, d, dst, trail, srcIp, inIface, proto, port, hops) {
+  if (hops) hops.push(d.id)
   if (d.type === 'isp') {
     if (/^10\./.test(dst)) return { ok: false, reason: 'El paquete murió en el ISP: las subredes privadas 10.x nunca deberían salir por aquí — a R1 le falta la ruta de regreso (revisa show ip route en R1)', where: 'ISP' }
     return { ok: true, path: trail }
@@ -382,7 +383,7 @@ export function routeFrom(lab, d, dst, trail, srcIp, inIface, proto, port) {
   const g = deliverTo(lab, r.via, r.node, d.id)
   if (!g) return { ok: false, reason: d.name + ': el siguiente salto ' + r.via + ' no es alcanzable desde ' + (r.iface || 'su interfaz de salida') + ' (enlace caído o problema VLAN/trunk)', where: d.name }
   if (trail.some((t) => t.dev === g.dev.id)) return { ok: false, reason: 'Loop de enrutamiento entre ' + d.name + ' y ' + g.dev.name, where: d.name }
-  return routeFrom(lab, g.dev, dst, trail.concat([{ dev: d.id, name: d.name, via: r.via }]), src, g.iface, proto, port)
+  return routeFrom(lab, g.dev, dst, trail.concat([{ dev: d.id, name: d.name, via: r.via }]), src, g.iface, proto, port, hops)
 }
 
 export function simRequest(lab, srcId, dstIp, proto, port) {
@@ -419,8 +420,10 @@ export function pingSim(lab, srcId, dstIp) {
     }
   }
   const srcIp = isEndpoint(d) ? d.pc.ip : primaryIp(lab, d)
-  const fwd = routeFrom(lab, d, dstIp, [], srcIp, null)
+  const hops = []
+  const fwd = routeFrom(lab, d, dstIp, [], srcIp, null, 'icmp', null, hops)
   if (!fwd.ok) return fwd
+  const traceHops = () => hops.concat(fwd.reached ? [fwd.reached.dev.id] : [])
   if (dstIp === INTERNET) {
     const r1 = lab.devices['R1']
     if (r1 && isEndpoint(d)) {
@@ -433,15 +436,15 @@ export function pingSim(lab, srcId, dstIp) {
       const nat = routeFrom(lab, lab.devices['R1'], srcIp, [], srcIp, null)
       if (!nat.ok) return { ok: false, reason: 'El tráfico sale a Internet, pero NAT falla al regresar: ' + nat.reason }
     }
-    return { ok: true, path: fwd.path }
+    return { ok: true, path: fwd.path, hops: traceHops() }
   }
   const t = fwd.reached
-  if (!t) return { ok: true, path: fwd.path }
-  if (t.dev.id === d.id) return { ok: true, path: fwd.path }
-  if (!srcIp) return { ok: true, path: fwd.path }
+  if (!t) return { ok: true, path: fwd.path, hops: traceHops() }
+  if (t.dev.id === d.id) return { ok: true, path: fwd.path, hops: traceHops() }
+  if (!srcIp) return { ok: true, path: fwd.path, hops: traceHops() }
   const back = routeFrom(lab, t.dev, srcIp, [], dstIp, null)
   if (!back.ok) return { ok: false, reason: 'Ida OK, pero sin ruta de regreso: ' + back.reason, where: back.where }
-  return { ok: true, path: fwd.path }
+  return { ok: true, path: fwd.path, hops: traceHops() }
 }
 
 export function evaluateGoals(lab) {

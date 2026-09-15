@@ -233,6 +233,17 @@ test('CLI: show etherchannel, show ipv6 interface/route y show ip dhcp snooping'
   assert.ok(ctx.sessions.SW2.out.some((e) => /snooping/i.test(e.t)), 'show ip dhcp snooping debe mostrar el estado')
 })
 
+test('pingSim devuelve el trayecto (hops) para animar el ping', () => {
+  const lab = plainLab(321)
+  const r = pingSim(lab, 'PC3', INTERNET)
+  assert.equal(r.ok, true)
+  assert.ok(Array.isArray(r.hops), 'debe devolver hops')
+  assert.equal(r.hops[0], 'PC3')
+  assert.ok(r.hops.includes('SW1') && r.hops.includes('R1'), 'el trayecto debe pasar por SW1 y R1')
+  const r2 = pingSim(lab, 'PC1', lab.spec.nets.admin.gw)
+  assert.ok(r2.hops.includes('SW1'))
+})
+
 test('CLI: show access-lists y show port-security no fallan', () => {
   const lab = plainLab(323)
   const ctx = lab.ctx || (lab.ctx = { lab, sessions: {} })
