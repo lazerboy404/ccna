@@ -21,7 +21,7 @@ function Badge({ kind, children }) {
 }
 
 export default function TicketPanel() {
-  const { lab, goalsResults, stats, toastMsg } = useNetwork()
+  const { lab, goalsResults, stats, toast } = useNetwork()
   const s = lab.spec
   const sc = lab.scenario
   const [copied, setCopied] = useState(false)
@@ -41,8 +41,8 @@ export default function TicketPanel() {
     }
     const text = lines.join('\n')
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => { setCopied(true); toastMsg('📋 Comandos copiados al portapapeles.', 'ok') }, () => toastMsg('No se pudo copiar.', 'err'))
-    } else toastMsg('Portapapeles no disponible en este navegador.', 'err')
+      navigator.clipboard.writeText(text).then(() => { setCopied(true); toast('📋 Comandos copiados al portapapeles.', 'ok') }, () => toast('No se pudo copiar.', 'err'))
+    } else toast('Portapapeles no disponible en este navegador.', 'err')
   }
 
   const planRows = () => {
