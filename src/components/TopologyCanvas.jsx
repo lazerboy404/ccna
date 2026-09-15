@@ -242,7 +242,17 @@ export default function TopologyCanvas() {
               <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} className={'link ' + LINK_CLASS[state] + (l.kind === 'wifi' ? ' lk-wifi' : '')}>
                 <title>{dA.name + ' (' + (l.a.port || 'NIC') + ') ↔ ' + dB.name + ' (' + (l.b.port || 'NIC') + ')\n' + l.label + ' — ' + detail}</title>
               </line>
-              {state === 'ok' && <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} className="link-flow" />}
+              {state === 'ok' && (() => {
+                const dx = pb.x - pa.x, dy = pb.y - pa.y
+                const len = Math.hypot(dx, dy) || 1
+                const nx = (-dy / len) * 1.8, ny = (dx / len) * 1.8
+                return (
+                  <>
+                    <line x1={pa.x + nx} y1={pa.y + ny} x2={pb.x + nx} y2={pb.y + ny} className="link-flow" />
+                    <line x1={pa.x - nx} y1={pa.y - ny} x2={pb.x - nx} y2={pb.y - ny} className="link-flow link-flow-rev" />
+                  </>
+                )
+              })()}
               {cabling && (
                 <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="transparent" strokeWidth="16" style={{ cursor: 'pointer' }}
                   onClick={(e) => { e.stopPropagation(); disconnect(l.id) }}>
