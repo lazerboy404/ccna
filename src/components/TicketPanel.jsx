@@ -1,8 +1,6 @@
 // Panel lateral: ticket con narrativa, objetivos en vivo, pistas, solución paso a paso y estadísticas
 import { useState } from 'react'
 import { useNetwork } from '../context/NetworkContext.jsx'
-import { INTERNET, isSwitch } from '../lib/utils.js'
-import { TOPO_ORDER } from '../lib/labGenerator.js'
 
 const DIFF_TEXT = {
   'Básico': 'text-green-300',
@@ -107,30 +105,17 @@ export default function TicketPanel() {
           <p className="text-[12.5px] leading-relaxed text-[#cfe6f7] italic">{sc.story(s)}</p>
         </blockquote>
 
-        <p className="text-[12px] text-sim-muted leading-relaxed mb-3">
-          {isBuild
-            ? <><b className="text-sim-text">{s.ticket.tech}</b> (responsable del sitio). Cablea los equipos con el botón 🔌 y configura la red nueva (VLAN, troncal, puertos access y gateway) hasta cumplir todos los objetivos.</>
-            : <><b className="text-sim-text">{s.ticket.tech}</b> (administrador del sitio). Diagnostica capa por capa (física → VLAN → ruteo) y restaura todos los objetivos con la CLI.</>}
-        </p>
-
-        {lab.faults.length > 0 && (
-          <>
-            <div className="text-[10px] uppercase tracking-wider text-red-300/80 font-bold mb-1.5">Síntomas a resolver · {lab.faults.length}</div>
-            <ul className="flex flex-col gap-1">
-              {lab.faults.map((f) => (
-                <li key={f.key} className="flex gap-2 bg-[#131f3a]/60 border-l-2 border-l-red-500/70 rounded-r-md px-2.5 py-1.5 text-[12.5px] leading-snug text-[#d5e2f5]">
-                  <span className="text-red-400/80 shrink-0">⚠</span>
-                  <span>{f.symptom}</span>
-                </li>
-              ))}
-            </ul>
-          </>
+        {isBuild && (
+          <p className="text-[12px] text-sim-muted leading-relaxed mb-3">
+            <b className="text-sim-text">{s.ticket.tech}</b> (responsable del sitio). Cablea los equipos con el botón 🔌 y configura la red nueva hasta cumplir todos los objetivos.
+          </p>
         )}
 
         <details className="group border-t border-sim-border/60 mt-3 pt-2.5">
           <summary className="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11.5px] font-semibold text-sim-muted hover:text-sim-text [&::-webkit-details-marker]:hidden">
             <span className="text-sim-accent/70 transition-transform group-open:rotate-90">▸</span>
-            Plan de direccionamiento
+            Direccionamiento del sitio
+            <span className="ml-auto normal-case font-normal text-[10px] text-sim-muted/60">documento del cliente</span>
           </summary>
           <div className="overflow-x-auto mt-2.5">
             <table className="w-full border-collapse text-[11px] font-mono tabular-nums">
@@ -148,31 +133,6 @@ export default function TicketPanel() {
               </tbody>
             </table>
           </div>
-          <p className="text-[11px] text-sim-muted leading-relaxed mt-2">
-            Las SVI viven en <b className="text-sim-text">{s.names.sw1}</b>. R1 aplica NAT hacia Internet ({INTERNET}).{' '}
-            {s.topo.fw ? <>El tráfico WAN sale por <b className="text-sim-text">{s.names.fw}</b> hacia el ISP. </> : 'R1 conecta directo al ISP (sitio sin firewall). '}
-            {s.wanDesign === 'static'
-              ? <>Rutas LAN/WAN por <b className="text-sim-text">estáticas</b>.</>
-              : <>Rutas LAN por <b className="text-sim-text">OSPF área 0</b>; SW1 sale por ruta estática vía R1.</>}
-          </p>
-        </details>
-
-        <details className="group border-t border-sim-border/60 mt-2 pt-2.5">
-          <summary className="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11.5px] font-semibold text-sim-muted hover:text-sim-text [&::-webkit-details-marker]:hidden">
-            <span className="text-sim-accent/70 transition-transform group-open:rotate-90">▸</span>
-            Topología afectada
-          </summary>
-          <ul className="flex flex-col gap-1 mt-2.5">
-            {(lab.order && lab.order.length ? lab.order : TOPO_ORDER.filter((id) => !!lab.devices[id])).map((id) => {
-              const d = lab.devices[id]
-              const color = id.startsWith('PC') ? '#0ea5e9' : isSwitch(d) ? '#a78bfa' : '#22d3ee'
-              return (
-                <li key={id} className="bg-[#131f3a]/60 border border-[#22345c]/60 rounded-md px-2.5 py-1.5 text-[12px] text-[#c8d8ef]" style={{ borderLeft: '3px solid ' + color }}>
-                  <b className="text-sim-text">{d.name}</b> <span className="text-sim-muted">— {d.role}</span>
-                </li>
-              )
-            })}
-          </ul>
         </details>
       </Panel>
 
@@ -193,6 +153,7 @@ export default function TicketPanel() {
       {shown.length > 0 && (
         <Panel>
           <SectionTitle icon="💡" aside={lab.hintsUsed + ' usadas'}>Pistas</SectionTitle>
+          <p className="text-[11px] text-sim-muted/80 leading-relaxed mb-2">Cada "Pedir Pista" revela un dato más: primero los síntomas observados y después orientación técnica.</p>
           <ul className="flex flex-col gap-1.5">
             {shown.map((h, i) => (
               <li key={i} className="bg-[#241d0c]/80 border border-[#57421a]/70 rounded-lg px-2.5 py-2 text-[12.5px] leading-relaxed text-[#f1dfae]">

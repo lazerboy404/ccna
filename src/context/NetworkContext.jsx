@@ -81,7 +81,10 @@ export function NetworkProvider({ children }) {
 
   const giveHint = useCallback(() => {
     const all = []
-    for (const f of lab.faults) for (const h of f.hints) all.push(h)
+    for (const f of lab.faults) {
+      if (f.symptom) all.push('🔎 Síntoma observado: ' + f.symptom)
+      for (const h of f.hints) all.push(h)
+    }
     if (lab.build && lab.build.hints) for (const h of lab.build.hints) all.push(h)
     if (lab.hintsUsed >= all.length) { toast('Ya no hay más pistas para este laboratorio. Revisa la solución o valida de nuevo.', 'err'); return }
     lab.hintsUsed++
