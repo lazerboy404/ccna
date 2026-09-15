@@ -178,7 +178,7 @@ export default function TicketPanel() {
 
       <Panel>
         <SectionTitle icon="🎯" aside={goalsResults.filter((g) => g.res.ok).length + '/' + goalsResults.length}>
-          Objetivos del cliente
+          {isBuild ? 'Objetivos del proyecto' : 'Objetivos del cliente'}
         </SectionTitle>
         <ul className="flex flex-col">
           {goalsResults.map((g) => (

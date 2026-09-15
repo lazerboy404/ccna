@@ -1,14 +1,16 @@
-import { NetworkProvider } from './context/NetworkContext.jsx'
+import { NetworkProvider, useNetwork } from './context/NetworkContext.jsx'
 import Header from './components/Header.jsx'
 import TicketPanel from './components/TicketPanel.jsx'
 import TopologyCanvas from './components/TopologyCanvas.jsx'
 import TerminalCLI from './components/TerminalCLI.jsx'
 import ValidationModal from './components/ValidationModal.jsx'
 import Toasts from './components/Toasts.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 
-export default function App() {
+function Shell() {
+  const { newLab } = useNetwork()
   return (
-    <NetworkProvider>
+    <ErrorBoundary onReset={newLab}>
       <div className="min-h-screen">
         <Header />
         <main className="grid grid-cols-1 lg:grid-cols-[370px_1fr] gap-3.5 px-4 py-3.5 max-w-[1680px] mx-auto items-start">
@@ -21,6 +23,14 @@ export default function App() {
         <ValidationModal />
         <Toasts />
       </div>
+    </ErrorBoundary>
+  )
+}
+
+export default function App() {
+  return (
+    <NetworkProvider>
+      <Shell />
     </NetworkProvider>
   )
 }

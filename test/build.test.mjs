@@ -97,6 +97,17 @@ test('cableado: no se puede conectar dos PCs ni reutilizar un puerto', () => {
   assert.ok(!freePorts(lab, 'SW1').includes('Gi0/5'))
 })
 
+test('los escenarios de construcción exponen spec.build y su historia se renderiza', () => {
+  for (const key of ['c-edificio', 'c-piso', 'c-edificio-avz']) {
+    for (const seed of [1, 42, 424242, 3140732973, 2257126979]) {
+      const lab = generateConstructionLab(seed, scenario(key))
+      assert.ok(lab.spec.build, 'spec.build debe existir para que la historia no falle')
+      assert.doesNotThrow(() => lab.scenario.story(lab.spec), 'story() no debe lanzar (regresión de pantalla en blanco)')
+      assert.ok(lab.build.pcs.length >= 3)
+    }
+  }
+})
+
 test('reiniciar la construcción deja la topología en blanco', () => {
   const lab = generateConstructionLab(7, scenario('c-edificio'))
   wire(lab, 'SW1', 'Gi0/5', 'SWB', 'Gi0/1')

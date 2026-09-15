@@ -72,6 +72,7 @@ export function generateConstructionLab(seed, sc) {
     hints: buildHints(spec, { template, vlan, vlanName: areaName, gw, accSw, swName, pcs }),
     solution: buildSolution(spec, { template, vlan, vlanName: areaName, gw, accSw, swId: 'SWB', swName }),
   }
+  spec.build = build
   const lab = {
     mode: 'build', spec, scenario: sc, devices, links, order, positions,
     faults: [], goals: goalSpec, build,
