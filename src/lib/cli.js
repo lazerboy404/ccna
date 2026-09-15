@@ -255,6 +255,19 @@ function showWlan(lab, d, o) {
   if (!list.length) o('  (sin SSIDs — configúralos con: ssid <nombre> vlan <id>)', 'dim')
 }
 
+function showNat(lab, d, o) {
+  if (d.type !== 'router') { o('% Comando disponible en routers.', 'err'); return }
+  const ins = Object.entries(d.interfaces).filter(([, i]) => i.natRole === 'inside').map(([n]) => n)
+  const outs = Object.entries(d.interfaces).filter(([, i]) => i.natRole === 'outside').map(([n]) => n)
+  o('NAT  inside [' + (ins.join(', ') || '-') + ']   outside [' + (outs.join(', ') || '-') + ']', 'hdr')
+  o(pad('Pro', 8) + pad('Inside global', 18) + pad('Inside local', 18) + 'Outside global', 'hdr')
+  if (!ins.length || !outs.length) { o('(sin traducciones — marca las interfaces con ip nat inside / ip nat outside)', 'dim'); return }
+  for (const e of Object.values(lab.devices)) {
+    if (!e.pc) continue
+    o(pad('icmp', 8) + pad('203.0.113.2:1', 18) + pad(e.pc.ip + ':1', 18) + '8.8.8.8:1')
+  }
+}
+
 function showRun(lab, d, o) {
   o('!', 'dim')
   o('hostname ' + d.name, 'hdr')
@@ -297,6 +310,7 @@ function showRun(lab, d, o) {
       }
       for (const a of (d.aclApply || [])) if (a.iface === name) o(' ip access-group ' + a.name + ' ' + a.dir)
     }    if (i.ip) o(' ip address ' + i.ip + ' ' + i.mask)
+    if (i.natRole) o(' ip nat ' + i.natRole)
     if (i.status === 'down') o(' shutdown', 'err')
     else if (i.kind !== 'port') o(' no shutdown')
     o('!', 'dim')
@@ -383,6 +397,7 @@ function showCmd(ctx, d, o, toks) {
   const lab = ctx.lab
   const sub = (toks[1] || '').toLowerCase()
   if (sub === 'ip' && toks[2] === 'interface') return showIpIntBrief(lab, d, o)
+  if (sub === 'ip' && toks[2] === 'nat') return showNat(lab, d, o)
   if (sub === 'ip' && toks[2] === 'route') return showIpRoute(lab, d, o)
   if (sub === 'ip' && toks[2] === 'protocols') return showIpProtocols(lab, d, o)
   if (sub === 'ip' && toks[2] === 'arp') return showArp(lab, d, o)
@@ -407,7 +422,7 @@ function showCmd(ctx, d, o, toks) {
 }
 
 function helpFor(d, c, o) {
-  const common = ['show ip interface brief', 'show ip route', 'show interfaces [X]', 'show running-config', 'show access-lists', 'show port-security', 'show wlan', 'show version', 'ping <ip>', 'exit']
+  const common = ['show ip interface brief', 'show ip route', 'show interfaces [X]', 'show running-config', 'show access-lists', 'show port-security', 'show wlan', 'show ip nat translations', 'show version', 'ping <ip>', 'exit']
   if (isEndpoint(d)) {
     o('Comandos disponibles (consola de PC):', 'hdr')
     o('  ipconfig                 Ver IP, máscara y gateway')
@@ -421,7 +436,7 @@ function helpFor(d, c, o) {
   if (c.mode === 'user') o('  enable | ping <ip> | show ... | exit')
   if (c.mode === 'priv') o('  configure terminal | disable | ping <ip> | show ... | exit')
   if (c.mode === 'config') o('  interface <nombre> | vlan <id> | ip route <red> <máscara> <via> | router ospf 1 | access-list <n> <permit|deny> <proto> <origen> <destino> | ssid <nombre> vlan <id> | hostname <X> | no <cmd> ... | end | exit')
-  if (c.mode === 'if') o('  ip address <ip> <máscara> | no ip address | shutdown | no shutdown | switchport mode access|trunk | switchport access vlan <id> | switchport trunk allowed vlan <lista|all|add X> | switchport trunk native vlan <id> | switchport trunk encapsulation dot1q | switchport port-security [...] | ip access-group <acl> <in|out> | spanning-tree portfast [trunk] | description <txt> | end | exit')
+  if (c.mode === 'if') o('  ip address <ip> <máscara> | no ip address | shutdown | no shutdown | switchport mode access|trunk | switchport access vlan <id> | switchport trunk allowed vlan <lista|all|add X> | switchport trunk native vlan <id> | switchport trunk encapsulation dot1q | switchport port-security [...] | ip nat inside|outside | ip access-group <acl> <in|out> | spanning-tree portfast [trunk] | description <txt> | end | exit')
   if (c.mode === 'vlan') o('  name <nombre> | exit | end')
   if (c.mode === 'router') o('  network <red> <wildcard> area 0 | no network <red> | exit | end')
   o('  ' + common.join(' | '), 'dim')
@@ -695,6 +710,12 @@ export function execCommand(ctx, devId, line) {
       if (i.security && i.security.state === 'err-disabled') { i.security.state = 'secure-up'; o('✔ Puerto recuperado del estado err-disabled.', 'ok') }
       portNote(ctx, d.id, c.ifc, o); recompute(lab); return
     }
+    if (cmd === 'ip' && toks[1] === 'nat' && (toks[2] === 'inside' || toks[2] === 'outside')) {
+      i.natRole = toks[2]
+      o('Interfaz ' + c.ifc + ' marcada como NAT ' + toks[2] + '.', 'ok')
+      recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'ip' && toks[2] === 'nat') { i.natRole = null; recompute(lab); return }
     if (cmd === 'ip' && toks[1] === 'access-group') {
       const name = toks[2]
       const dir = (toks[3] || '').toLowerCase()

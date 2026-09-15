@@ -398,6 +398,13 @@ export function pingSim(lab, srcId, dstIp) {
   const fwd = routeFrom(lab, d, dstIp, [], srcIp, null)
   if (!fwd.ok) return fwd
   if (dstIp === INTERNET) {
+    const r1 = lab.devices['R1']
+    if (r1 && isEndpoint(d)) {
+      const lan = r1.interfaces['Gi0/1'], wan = r1.interfaces['Gi0/0']
+      if ((lan && lan.natRole !== 'inside') || (wan && wan.natRole !== 'outside')) {
+        return { ok: false, reason: 'El tráfico sale hacia Internet pero NAT no traduce: en ' + r1.name + ' las interfaces inside/outside están mal aplicadas (revisa ip nat inside / ip nat outside)' }
+      }
+    }
     if (srcId !== 'R1' && srcId !== 'FW1' && srcId !== 'ISP' && srcIp) {
       const nat = routeFrom(lab, lab.devices['R1'], srcIp, [], srcIp, null)
       if (!nat.ok) return { ok: false, reason: 'El tráfico sale a Internet, pero NAT falla al regresar: ' + nat.reason }

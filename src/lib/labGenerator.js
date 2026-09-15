@@ -60,6 +60,8 @@ export const SCENARIOS = [
     story: s => '«La cámara de la entrada dejó de grabar; el resto de las cámaras y la red funcionan bien.» — Seguridad' },
   { key: 'a-srv-cam', diff: 'Avanzado', srv: true, cam: true, title: 'Servidor y cámara caídos', design: null, sw3: null, faultKeys: ['srv-wrong-vlan', 'cam-shut'],
     story: s => '«Dos reportes el mismo día: no podemos entrar a la aplicación del servidor y la cámara de la entrada no graba. Los dos equipos están en el cuarto del centro de cómputo.» — Mesa de ayuda' },
+  { key: 'i-nat', diff: 'Intermedio', title: 'No abre Internet', design: null, sw3: null, faultKeys: ['nat-swapped'],
+    story: s => '«La red interna funciona: nos vemos y compartimos archivos, pero nadie abre páginas de internet. El aparato del proveedor está normal.» — Gerencia' },
   { key: 'i-native-vlan', diff: 'Intermedio', title: 'Ventas sin red', design: null, sw3: null, faultKeys: ['native-mismatch'],
     story: s => '«En Ventas no abren nada desde que alguien tocó el aparato central; Soporte y Administración sí trabajan.» — Mesa de ayuda' },
   { key: 'i-encap', diff: 'Intermedio', title: 'Ventas y Soporte sin red', design: null, sw3: null, faultKeys: ['encap-mismatch'],
@@ -182,6 +184,8 @@ export function buildDevices(s) {
     staticRoutes: s.wanDesign === 'static' ? [{ net: '0.0.0.0', mask: M0, via: wanVia }].concat(lanRoutes) : [{ net: '0.0.0.0', mask: M0, via: wanVia }],
     vlans: null,
     ospf: s.wanDesign === 'ospf' ? { enabled: true, process: 1, networks: [{ net: s.nets.transit.net, wild: '0.0.0.255', area: 0 }] } : { enabled: false, process: 1, networks: [] } }
+  devs.R1.interfaces['Gi0/1'].natRole = 'inside'
+  devs.R1.interfaces['Gi0/0'].natRole = 'outside'
   devs.SW1 = { id: 'SW1', name: s.names.sw1, type: 'l3switch', role: 'Switch L3 core (gateway de las VLAN, router-on-a-stick)',
     vlans: sw1Vlans, interfaces: sw1Ifaces, stp: sw1Stp, portfast: {},
     staticRoutes: [{ net: '0.0.0.0', mask: M0, via: s.nets.transit.r1 }],
@@ -444,6 +448,14 @@ export function makeFaults(s, rnd) {
       'Ejecuta show interfaces trunk: un extremo muestra una encapsulación distinta. Corrige con: switchport trunk encapsulation dot1q.'],
     solution: [{ devId: 'SW2', cmds: ['enable', 'configure terminal', 'interface Gi0/1', 'switchport trunk encapsulation dot1q', 'end'] }],
     apply: (d) => { const p = d.SW2.interfaces['Gi0/1']; p.mode = 'trunk'; p.encap = 'isl' } })
+
+  F.push({ key: 'nat-swapped', design: null, title: 'NAT aplicado en interfaces incorrectas', category: 'Servicios IP (NAT)',
+    devId: 'R1', port: null,
+    symptom: 'La red interna funciona (todos se ven entre sí y con los servidores), pero nadie puede abrir Internet.',
+    hints: ['El tráfico llega al router, pero NAT no está traduciendo las direcciones internas.',
+      'Ejecuta show running-config en ' + n.r1 + ': los comandos ip nat inside / ip nat outside están en las interfaces equivocadas. La LAN debe ser inside y la WAN outside.'],
+    solution: [{ devId: 'R1', cmds: ['enable', 'configure terminal', 'interface Gi0/0', 'ip nat outside', 'interface Gi0/1', 'ip nat inside', 'end'] }],
+    apply: (d) => { d.R1.interfaces['Gi0/0'].natRole = 'inside'; d.R1.interfaces['Gi0/1'].natRole = 'outside' } })
 
   F.push({ key: 'pc-wrong-gw', design: null, title: 'Puerta de enlace incorrecta en la PC', category: 'Configuración IP / Subredes',
     devId: 'PC2', port: null,

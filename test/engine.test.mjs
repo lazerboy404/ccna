@@ -150,6 +150,17 @@ test('CLI: show interface switchport y copy running-config startup-config', () =
   assert.ok(ctx.sessions.SW1.out.some((e) => /\[OK\]/.test(e.t)), 'copy run start debe confirmar [OK]')
 })
 
+test('NAT: inside/outside mal aplicadas rompe Internet y se corrige', () => {
+  const sc = SCENARIOS.find((s) => s.key === 'i-nat')
+  const lab = buildLabFor(sc, 777)
+  assert.equal(evaluateGoals(lab).find((g) => g.id === 'g5').res.ok, false, 'PC1 → Internet debe fallar por NAT')
+  const ctx = lab.ctx || (lab.ctx = { lab, sessions: {} })
+  run(lab, 'R1', ['show ip nat translations'])
+  assert.ok(ctx.sessions.R1.out.some((e) => /outside/.test(e.t)), 'show ip nat translations debe mostrar las interfaces')
+  solve(lab)
+  assert.deepEqual(evaluateGoals(lab).filter((g) => !g.res.ok).map((g) => g.label), [])
+})
+
 test('CLI: show access-lists y show port-security no fallan', () => {
   const lab = plainLab(323)
   const ctx = lab.ctx || (lab.ctx = { lab, sessions: {} })

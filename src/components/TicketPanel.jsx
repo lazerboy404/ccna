@@ -235,6 +235,7 @@ export default function TicketPanel() {
             <b>router ospf 1</b> → <b>network 10.0.10.0 0.0.0.255 area 0</b><br />
             <b>access-list 110 deny|permit ip &lt;origen&gt; &lt;destino&gt;</b> · <b>ip access-group 110 in|out</b><br />
             <b>switchport port-security [maximum N] [violation restrict|shutdown]</b><br />
+            <b>ip nat inside</b> · <b>ip nat outside</b> (R1) · <b>show ip nat translations</b><br />
             <b>ssid CORP vlan 20</b> (Access Point) · <b>show wlan</b> (SSIDs y clientes)<br />
             <b>show ip interface brief</b> · <b>show ip route</b> · <b>show vlan brief</b><br />
             <b>show interfaces trunk</b> · <b>show spanning-tree brief</b> · <b>show ip arp</b><br />
