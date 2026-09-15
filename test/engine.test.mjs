@@ -3,7 +3,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { INTERNET } from '../src/lib/utils.js'
 import { SCENARIOS, generateSpec, buildDevices, buildLinks, buildGoals, scenarioFaults } from '../src/lib/labGenerator.js'
-import { recompute, evaluateGoals, pingSim } from '../src/lib/engine.js'
+import { recompute, evaluateGoals, pingSim, simRequest } from '../src/lib/engine.js'
 import { execCommand } from '../src/lib/cli.js'
 
 function buildLabFor(sc, seed) {
@@ -183,6 +183,19 @@ test('CLI: show cdp/lldp neighbors, show ntp y show ip dhcp binding', () => {
   assert.ok(ctx.sessions.R1.out.some((e) => /10\.0\.0\.1/.test(e.t)), 'show ntp debe listar el servidor')
   run(lab, 'R1', ['show ip dhcp binding'])
   assert.ok(ctx.sessions.R1.out.some((e) => /TEST/.test(e.t)), 'show ip dhcp binding debe listar el pool')
+})
+
+test('ACL extendida con puerto (HTTP 80): solo el host autorizado entra', () => {
+  const sc = SCENARIOS.find((s) => s.key === 'i-acl-web')
+  const lab = buildLabFor(sc, 777)
+  const srvIp = '10.' + lab.spec.B + '.10.20'
+  assert.equal(simRequest(lab, 'PC1', srvIp, 'tcp', 80).ok, true, 'PC-ADMIN debe poder (sin ACL aún)')
+  assert.equal(simRequest(lab, 'PC2', srvIp, 'tcp', 80).ok, true, 'al inicio todos pueden (sin ACL)')
+  solve(lab)
+  assert.equal(simRequest(lab, 'PC2', srvIp, 'tcp', 80).ok, false, 'tras la ACL, Ventas no debe poder abrir HTTP')
+  assert.equal(simRequest(lab, 'PC1', srvIp, 'tcp', 80).ok, true, 'PC-ADMIN sigue pudiendo')
+  assert.equal(pingSim(lab, 'PC2', srvIp).ok, true, 'el resto del tráfico sigue permitido')
+  assert.deepEqual(evaluateGoals(lab).filter((g) => !g.res.ok).map((g) => g.label), [])
 })
 
 test('CLI: show access-lists y show port-security no fallan', () => {

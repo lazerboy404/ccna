@@ -1,5 +1,6 @@
 // Generador de laboratorios: escenarios reales, dispositivos, enlaces, objetivos y catálogo de fallas
 import { mulberry32, M24, M30, M16, M0, INTERNET } from './utils.js'
+import { simRequest, pingSim } from './engine.js'
 
 export const TOPO_ORDER = ['ISP', 'FW1', 'R1', 'SW1', 'SW2', 'SW3', 'PC1', 'PC2', 'PC3', 'PC4']
 
@@ -126,6 +127,25 @@ export const SCENARIOS = [
         return p ? true : { ok: false, reason: 'En ' + s.names.r1 + ': ip dhcp pool VENTAS → network ' + s.nets.ventas.net + ' 255.255.255.0 → default-router ' + s.nets.ventas.gw }
       } },
     ] },
+  { key: 'i-acl-web', diff: 'Avanzado', srv: true, title: 'Solo una computadora al servidor', design: null, sw3: null, faultKeys: [],
+    story: s => '«En finanzas quieren que solo la computadora de la gerente abra el sistema del servidor por el navegador; las demás no deben poder, pero todo lo demás sí debe seguir funcionando.» — Dirección',
+    task: (s) => {
+      const srvIp = '10.' + s.B + '.10.20'
+      return {
+        key: 'task-aclweb', title: 'Restringir el acceso web al servidor', category: 'Seguridad (ACL extendida)',
+        hints: ['Con una ACL extendida puedes permitir HTTP (puerto 80) desde un solo host y negarlo al resto, sin bloquear el resto del tráfico.',
+          'En ' + s.names.sw1 + ': access-list 100 permit tcp host ' + s.pcs.admin + ' host ' + srvIp + ' eq 80 · access-list 100 deny tcp any host ' + srvIp + ' eq 80 · access-list 100 permit ip any any; y aplica ip access-group 100 in en Vlan' + s.vv + '.'],
+        solution: [{ devId: 'SW1', cmds: ['enable', 'configure terminal', 'access-list 100 permit tcp host ' + s.pcs.admin + ' host ' + srvIp + ' eq 80', 'access-list 100 deny tcp any host ' + srvIp + ' eq 80', 'access-list 100 permit ip any any', 'interface Vlan' + s.vv, 'ip access-group 100 in', 'end'] }],
+      }
+    },
+    extraGoals: (s) => {
+      const srvIp = '10.' + s.B + '.10.20'
+      return [
+        { id: 'x-web-c', label: s.names.pc1 + ' SÍ puede abrir el servidor (HTTP 80)', check: (l) => simRequest(l, 'PC1', srvIp, 'tcp', 80).ok ? true : { ok: false, reason: 'Permite HTTP desde ' + s.pcs.admin + ' hacia ' + srvIp } },
+        { id: 'x-web-d', label: 'Otras computadoras NO pueden abrir el servidor (HTTP 80)', check: (l) => simRequest(l, 'PC2', srvIp, 'tcp', 80).ok ? { ok: false, reason: 'Ventas todavía puede abrir el servidor web; crea la ACL que niegue tcp ... eq 80 hacia ' + srvIp } : true },
+        { id: 'x-other', label: 'El resto del tráfico sigue permitido (ping)', check: (l) => pingSim(l, 'PC2', srvIp).ok ? true : { ok: false, reason: 'No bloquees todo: al final de la ACL debes permitir ip any any' } },
+      ]
+    } },
   { key: 'sorpresa', diff: 'Mixto', title: 'Incidente sin clasificar', design: null, sw3: null, faultKeys: null,
     story: s => '«La red no sirve bien. Hay varios reportes sueltos y nadie sabe por dónde empezar. Revísalo tú, por favor.» — Mesa de ayuda' },
 ]

@@ -225,7 +225,7 @@ function showAccessLists(lab, d, o) {
     o('Extended IP access list ' + name + (where.length ? '  [aplicada en ' + where.join(', ') + ']' : '  (no aplicada)'), 'hdr')
     let seq = 10
     for (const e of acls[name]) {
-      o('    ' + seq + ' ' + e.action + ' ' + (e.proto || 'ip') + ' ' + aclAddrText(e.src) + ' ' + aclAddrText(e.dst))
+      o('    ' + seq + ' ' + e.action + ' ' + (e.proto || 'ip') + ' ' + aclAddrText(e.src) + ' ' + aclAddrText(e.dst) + (e.dstPort ? ' eq ' + e.dstPort : ''))
       seq += 10
     }
     o('    (deny implícito al final de la lista)', 'dim')
@@ -367,7 +367,7 @@ function showRun(lab, d, o) {
   if (d.type === 'ap') for (const s of (d.ssids || [])) o('ssid ' + s.name + ' vlan ' + s.vlan)
   for (const r of d.staticRoutes || []) o('ip route ' + r.net + ' ' + r.mask + ' ' + r.via)
   for (const [aname, entries] of Object.entries(d.acls || {})) {
-    for (const e of entries) o('access-list ' + aname + ' ' + e.action + ' ' + (e.proto || 'ip') + ' ' + aclAddrText(e.src) + ' ' + aclAddrText(e.dst))
+    for (const e of entries) o('access-list ' + aname + ' ' + e.action + ' ' + (e.proto || 'ip') + ' ' + aclAddrText(e.src) + ' ' + aclAddrText(e.dst) + (e.dstPort ? ' eq ' + e.dstPort : ''))
   }
   if (d.enableSecret) o('enable secret 5 $1$mERr$xxxxxxxxxxxxxxxx')
   if (d.svcEncrypt) o('service password-encryption')
@@ -657,9 +657,16 @@ export function execCommand(ctx, devId, line) {
       if (!src || !dst) {
         o('% Origen/destino inválidos. Usa "any", "host <ip>" o "<red> <wildcard>".', 'err'); recompute(lab); return
       }
+      let dstPort = null
+      if ((toks[dst.next] || '').toLowerCase() === 'eq') {
+        const p = +toks[dst.next + 1]
+        if (!p || p < 1 || p > 65535) { o('% Puerto inválido después de "eq".', 'err'); recompute(lab); return }
+        if (proto !== 'tcp' && proto !== 'udp') { o('% "eq <puerto>" solo aplica a tcp o udp.', 'err'); recompute(lab); return }
+        dstPort = p
+      }
       d.acls = d.acls || {}
-      d.acls[name] = (d.acls[name] || []).concat([{ action, proto, src: src.match, dst: dst.match }])
-      o('Entrada agregada a la ACL ' + name + ': ' + action + ' ' + proto + ' ' + aclAddrText(src.match) + ' ' + aclAddrText(dst.match), 'ok')
+      d.acls[name] = (d.acls[name] || []).concat([{ action, proto, src: src.match, dst: dst.match, dstPort }])
+      o('Entrada agregada a la ACL ' + name + ': ' + action + ' ' + proto + ' ' + aclAddrText(src.match) + ' ' + aclAddrText(dst.match) + (dstPort ? ' eq ' + dstPort : ''), 'ok')
       recompute(lab); return
     }
     if (cmd === 'no' && toks[1] === 'access-list') {

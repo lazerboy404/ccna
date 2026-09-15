@@ -322,17 +322,18 @@ export function aclMatch(match, ip) {
   const [net, wild] = match.split('/')
   return wildMatch(ip, net, wild)
 }
-export function aclEntryMatch(e, srcIp, dstIp, proto) {
+export function aclEntryMatch(e, srcIp, dstIp, proto, port) {
   if (e.proto && e.proto !== 'ip' && e.proto !== proto) return false
+  if (e.dstPort != null && e.dstPort !== port) return false
   return aclMatch(e.src, srcIp) && aclMatch(e.dst, dstIp)
 }
-export function aclDecision(d, iface, dir, srcIp, dstIp, proto) {
+export function aclDecision(d, iface, dir, srcIp, dstIp, proto, port) {
   if (!iface || !d.aclApply) return null
   const applies = d.aclApply.filter((a) => a.iface === iface && a.dir === dir)
   if (!applies.length) return null
   for (const a of applies) {
     const entries = (d.acls && d.acls[a.name]) || []
-    for (const e of entries) if (aclEntryMatch(e, srcIp, dstIp, proto)) return { action: e.action, name: a.name }
+    for (const e of entries) if (aclEntryMatch(e, srcIp, dstIp, proto, port)) return { action: e.action, name: a.name }
   }
   return { action: 'deny', name: applies[0].name }
 }
@@ -345,18 +346,18 @@ export function aclAppliesOn(d, name) {
   return (d.aclApply || []).filter((a) => a.name === name).map((a) => a.iface + ' ' + a.dir)
 }
 
-export function routeFrom(lab, d, dst, trail, srcIp, inIface) {
+export function routeFrom(lab, d, dst, trail, srcIp, inIface, proto, port) {
   if (d.type === 'isp') {
     if (/^10\./.test(dst)) return { ok: false, reason: 'El paquete murió en el ISP: las subredes privadas 10.x nunca deberían salir por aquí — a R1 le falta la ruta de regreso (revisa show ip route en R1)', where: 'ISP' }
     return { ok: true, path: trail }
   }
   const src = srcIp || '0.0.0.0'
-  const aclIn = aclDecision(d, inIface, 'in', src, dst, 'icmp')
+  const aclIn = aclDecision(d, inIface, 'in', src, dst, proto || 'icmp', port)
   if (aclIn && aclIn.action === 'deny') return { ok: false, reason: d.name + ': la ACL ' + aclIn.name + ' (entrada ' + inIface + ') descarta el tráfico de ' + src + ' hacia ' + dst, where: d.name }
   const rt = routesOf(lab, d)
   const r = lpm(rt, dst)
   if (!r) return { ok: false, reason: d.name + ': no hay ruta hacia ' + dst + ' — revisa `show ip route`', where: d.name }
-  const aclOut = aclDecision(d, r.iface, 'out', src, dst, 'icmp')
+  const aclOut = aclDecision(d, r.iface, 'out', src, dst, proto || 'icmp', port)
   if (aclOut && aclOut.action === 'deny') return { ok: false, reason: d.name + ': la ACL ' + aclOut.name + ' (salida ' + (r.iface || '?') + ') bloquea el tráfico hacia ' + dst, where: d.name }
   if (r.type === 'connected') {
     const t = deliverTo(lab, dst, r.node, d.id)
@@ -366,7 +367,15 @@ export function routeFrom(lab, d, dst, trail, srcIp, inIface) {
   const g = deliverTo(lab, r.via, r.node, d.id)
   if (!g) return { ok: false, reason: d.name + ': el siguiente salto ' + r.via + ' no es alcanzable desde ' + (r.iface || 'su interfaz de salida') + ' (enlace caído o problema VLAN/trunk)', where: d.name }
   if (trail.some((t) => t.dev === g.dev.id)) return { ok: false, reason: 'Loop de enrutamiento entre ' + d.name + ' y ' + g.dev.name, where: d.name }
-  return routeFrom(lab, g.dev, dst, trail.concat([{ dev: d.id, name: d.name, via: r.via }]), src, g.iface)
+  return routeFrom(lab, g.dev, dst, trail.concat([{ dev: d.id, name: d.name, via: r.via }]), src, g.iface, proto, port)
+}
+
+export function simRequest(lab, srcId, dstIp, proto, port) {
+  const d = lab.devices[srcId]
+  if (!d) return { ok: false, reason: 'Dispositivo desconocido' }
+  if (isEndpoint(d) && findDupIp(lab, d.pc.ip)) return { ok: false, reason: d.name + ': IP duplicada' }
+  const srcIp = isEndpoint(d) ? d.pc.ip : primaryIp(lab, d)
+  return routeFrom(lab, d, dstIp, [], srcIp, null, proto, port)
 }
 
 export function primaryIp(lab, d) {
