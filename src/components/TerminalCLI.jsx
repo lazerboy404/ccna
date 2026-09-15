@@ -67,7 +67,7 @@ export default function TerminalCLI() {
           {active ? 'Consola: ' + lab.devices[active].name + ' · ↑/↓ historial · cls limpia' : ''}
         </div>
       </div>
-      <div className="bg-[#050b14] border-t border-[#12314e] p-3 h-[285px] flex flex-col font-mono text-[13px]">
+      <div className="bg-[#050b14] border-t border-[#12314e] p-3 h-[clamp(210px,40vh,360px)] flex flex-col font-mono text-[13px]">
         {active ? (
           <>
             <div ref={outRef} className="flex-1 overflow-y-auto whitespace-pre-wrap break-words leading-[1.5] pr-1.5 term-scroll">

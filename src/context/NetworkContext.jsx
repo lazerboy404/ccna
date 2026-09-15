@@ -53,6 +53,7 @@ export function NetworkProvider({ children }) {
   const [validation, setValidation] = useState(null)
   const [toasts, setToasts] = useState([])
   const [cabling, setCabling] = useState(false)
+  const [confirmState, setConfirmState] = useState(null)
   const [trace, setTrace] = useState([])
   const traceTimer = useRef(null)
 
@@ -66,6 +67,24 @@ export function NetworkProvider({ children }) {
   useEffect(() => { saveStats(stats) }, [stats])
 
   const goalsResults = useMemo(() => evaluateGoals(lab), [lab, tick])
+
+  const hintsTotal = useMemo(() => {
+    let n = 0
+    for (const f of lab.faults) { if (f.symptom) n++; n += (f.hints || []).length }
+    if (lab.build && lab.build.hints) n += lab.build.hints.length
+    return n
+  }, [lab])
+
+  const prevOkRef = useRef({ lab: null, ids: [] })
+  useEffect(() => {
+    if (prevOkRef.current.lab !== lab) {
+      prevOkRef.current = { lab, ids: goalsResults.filter((g) => g.res.ok).map((g) => g.id) }
+      return
+    }
+    const prev = new Set(prevOkRef.current.ids)
+    for (const g of goalsResults.filter((x) => x.res.ok && !prev.has(x.id))) toast('✅ Objetivo cumplido: ' + g.label, 'ok')
+    prevOkRef.current.ids = goalsResults.filter((g) => g.res.ok).map((g) => g.id)
+  }, [goalsResults, lab, toast])
 
   const ctx = useMemo(() => ({ lab, sessions: sessionsRef.current }), [lab])
 
@@ -193,6 +212,8 @@ export function NetworkProvider({ children }) {
   }, [toast])
 
   const closeValidation = useCallback(() => setValidation(null), [])
+  const ask = useCallback((opts) => setConfirmState(opts), [])
+  const closeAsk = useCallback(() => setConfirmState(null), [])
 
   const toggleCabling = useCallback(() => setCabling((c) => !c), [])
   const connect = useCallback((a, b, type) => {
@@ -211,7 +232,7 @@ export function NetworkProvider({ children }) {
   const value = {
     lab, tick, active, sessions: sessionsRef.current, stats, toasts, validation, goalsResults,
     setActive, run, giveHint, revealSolution, resetLab, newLab, validate, closeValidation, setPref, toast,
-    cabling, toggleCabling, connect, disconnect, trace,
+    cabling, toggleCabling, connect, disconnect, trace, hintsTotal, confirmState, ask, closeAsk,
   }
   return <NetworkContext.Provider value={value}>{children}</NetworkContext.Provider>
 }

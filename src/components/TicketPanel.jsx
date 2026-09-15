@@ -23,6 +23,76 @@ function SectionTitle({ icon, children, aside }) {
   )
 }
 
+function HelpTabs() {
+  const [tab, setTab] = useState('L2')
+  const B = ({ children }) => <b className="text-[#cfe0f7]">{children}</b>
+  const tabs = {
+    L2: [
+      [<B>enable</B>, ' → modo privilegiado · ', <B>configure terminal</B>, ' → config'],
+      [<B>interface Gi0/1</B>, ' · ', <B>no shutdown</B>, ' · ', <B>shutdown</B>],
+      [<B>vlan 20</B>, ' → ', <B>name VENTAS</B>],
+      [<B>switchport mode access|trunk</B>, ' · ', <B>switchport access vlan 20</B>],
+      [<B>switchport trunk allowed vlan 20,30|all|add 30</B>],
+      [<B>switchport trunk native vlan 1</B>, ' · ', <B>switchport trunk encapsulation dot1q</B>],
+      [<B>channel-group 1 mode active</B>, ' (EtherChannel LACP)'],
+      [<B>spanning-tree portfast [trunk]</B>],
+      [<B>spanning-tree bpduguard enable</B>, ' · ', <B>spanning-tree guard root|loop</B>],
+    ],
+    Ruteo: [
+      [<B>ip address 10.0.0.1 255.255.255.0</B>, ' (routers/SVI)'],
+      [<B>ip route 10.0.20.0 255.255.255.0 10.0.99.2</B>],
+      [<B>ip route 0.0.0.0 0.0.0.0 x.x.x.x</B>, ' (ruta por defecto)'],
+      [<B>router ospf 1</B>, ' → ', <B>network 10.0.10.0 0.0.0.255 area 0</B>],
+      [<B>ip nat inside</B>, ' · ', <B>ip nat outside</B>, ' (NAT en R1)'],
+      [<B>ipv6 unicast-routing</B>, ' · ', <B>ipv6 address 2001:DB8::1/64</B>, ' · ', <B>ipv6 route ...</B>],
+    ],
+    Seguridad: [
+      [<B>access-list 110 deny|permit ip &lt;origen&gt; &lt;destino&gt;</B>],
+      [<B>access-list 100 permit tcp host A host B eq 80</B>],
+      [<B>ip access-group 110 in|out</B>],
+      [<B>switchport port-security [maximum N] [violation restrict|shutdown]</B>],
+      [<B>enable secret X</B>],
+      [<B>line console 0|vty 0 4</B>, ' → ', <B>password X</B>, ' → ', <B>login</B>],
+      [<B>crypto key generate rsa</B>, ' · ', <B>transport input ssh</B>],
+      [<B>ip dhcp snooping [vlan X]</B>, ' · ', <B>ip arp inspection vlan X</B>],
+    ],
+    Servicios: [
+      [<B>ip dhcp pool X</B>, ' → ', <B>network ...</B>, ' → ', <B>default-router ...</B>],
+      [<B>ntp server 10.0.0.1</B>],
+      [<B>ssid CORP vlan 20</B>, ' (Access Point)'],
+      [<B>hostname X</B>],
+      [<B>copy running-config startup-config</B>],
+    ],
+    Shows: [
+      [<B>show ip interface brief</B>, ' · ', <B>show ip route</B>, ' · ', <B>show vlan brief</B>],
+      [<B>show interfaces trunk</B>, ' · ', <B>show interface Gi0/2 switchport</B>],
+      [<B>show spanning-tree brief</B>, ' · ', <B>show ip arp</B>],
+      [<B>show access-lists</B>, ' · ', <B>show port-security</B>, ' · ', <B>show wlan</B>],
+      [<B>show ip nat translations</B>, ' · ', <B>show cdp|lldp neighbors</B>],
+      [<B>show ntp status</B>, ' · ', <B>show ip dhcp binding</B>, ' · ', <B>show ip dhcp snooping</B>],
+      [<B>show etherchannel summary</B>, ' · ', <B>show ipv6 interface brief</B>],
+      [<B>show running-config</B>, ' · ', <B>ping &lt;ip&gt;</B>],
+      ['En equipos: ', <B>ipconfig</B>, ' · ', <B>ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt;</B>, ' · ', <B>ping &lt;ip&gt;</B>],
+    ],
+  }
+  const labels = { L2: 'VLAN/Interfaces', Ruteo: 'Ruteo', Seguridad: 'Seguridad', Servicios: 'Servicios', Shows: 'Shows' }
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap gap-1 mb-2">
+        {Object.keys(tabs).map((k) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={'rounded-md border px-2 py-0.5 text-[10.5px] font-semibold ' + (tab === k ? 'border-cyan-700 bg-[#0d2b3a] text-cyan-200' : 'border-sim-border bg-[#12213d] text-sim-muted hover:text-sim-text')}>
+            {labels[k]}
+          </button>
+        ))}
+      </div>
+      <div className="font-mono text-[11.5px] text-[#a9c1e0] leading-[1.9]">
+        {tabs[tab].map((line, i) => <div key={i}>{line.map((seg, j) => <span key={j}>{seg}</span>)}</div>)}
+      </div>
+    </div>
+  )
+}
+
 export default function TicketPanel() {
   const { lab, goalsResults, stats, toast } = useNetwork()
   const s = lab.spec
@@ -222,36 +292,7 @@ export default function TicketPanel() {
             <span className="text-sim-accent/70 text-[13px] transition-transform group-open:rotate-90">▸</span>
             <span>⌨️ Ayuda rápida de comandos IOS</span>
           </summary>
-          <div className="font-mono text-[11.5px] text-[#a9c1e0] leading-[1.8] mt-3">
-            <b>enable</b> → modo privilegiado · <b>configure terminal</b> → config<br />
-            <b>interface Gi0/1</b> · <b>no shutdown</b> · <b>shutdown</b><br />
-            <b>ip address 10.0.0.1 255.255.255.0</b> (routers/SVI)<br />
-            <b>vlan 20</b> → <b>name VENTAS</b><br />
-            <b>switchport mode access|trunk</b> · <b>switchport access vlan 20</b><br />
-            <b>switchport trunk allowed vlan 20,30|all|add 30</b><br />
-            <b>switchport trunk native vlan 1</b> · <b>switchport trunk encapsulation dot1q</b><br />
-            <b>spanning-tree portfast [trunk]</b> (destraba puerto STP)<br />
-            <b>ip route 10.0.20.0 255.255.255.0 10.0.99.2</b> · <b>ip route 0.0.0.0 0.0.0.0 x.x.x.x</b><br />
-            <b>router ospf 1</b> → <b>network 10.0.10.0 0.0.0.255 area 0</b><br />
-            <b>access-list 110 deny|permit ip &lt;origen&gt; &lt;destino&gt;</b> · <b>ip access-group 110 in|out</b><br />
-            <b>access-list 100 permit tcp host A host B eq 80</b> · <b>deny tcp any host B eq 80</b><br />
-            <b>switchport port-security [maximum N] [violation restrict|shutdown]</b><br />
-            <b>ip nat inside</b> · <b>ip nat outside</b> (R1) · <b>show ip nat translations</b><br />
-            <b>ssid CORP vlan 20</b> (Access Point) · <b>show wlan</b> (SSIDs y clientes)<br />
-            <b>show ip interface brief</b> · <b>show ip route</b> · <b>show vlan brief</b><br />
-            <b>show interfaces trunk</b> · <b>show spanning-tree brief</b> · <b>show ip arp</b><br />
-            <b>show interface Gi0/2 switchport</b> · <b>copy running-config startup-config</b><br />
-            <b>enable secret X</b> · <b>line console 0|vty 0 4</b> → <b>password X</b> → <b>login</b> · <b>crypto key generate rsa</b> · <b>transport input ssh</b><br />
-            <b>ntp server 10.0.0.1</b> · <b>ip dhcp pool X</b> → <b>network ...</b> → <b>default-router ...</b><br />
-            <b>show cdp neighbors</b> · <b>show lldp neighbors</b> · <b>show ntp status</b> · <b>show ip dhcp binding</b><br />
-            <b>channel-group 1 mode active</b> · <b>spanning-tree bpduguard enable</b> · <b>spanning-tree guard root|loop</b><br />
-            <b>ip dhcp snooping [vlan X]</b> · <b>ip arp inspection vlan X</b> · <b>ipv6 address .../64</b> · <b>ipv6 route ...</b><br />
-            <b>show etherchannel summary</b> · <b>show ipv6 interface brief</b> · <b>show ip dhcp snooping</b><br />
-            <b>show access-lists</b> · <b>show port-security</b> · <b>show ip protocols</b><br />
-            <b>show running-config</b> · <b>ping &lt;ip&gt;</b> · <b>hostname X</b><br />
-            En equipos: <b>ipconfig</b> · <b>ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt;</b> · <b>ping &lt;ip&gt;</b><br />
-            🔌 <b>Cablear</b>: clic en un equipo para conectar; clic en un cable para retirarlo/reemplazarlo.
-          </div>
+          <HelpTabs />
         </details>
       </Panel>
     </aside>

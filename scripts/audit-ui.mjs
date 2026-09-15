@@ -63,6 +63,26 @@ try {
   }
   await page.screenshot({ path: path.join(shotsDir, 'desktop.png') })
 
+  // Confirmación de acciones destructivas
+  let confirmOK = false
+  await page.getByRole('button', { name: /Reiniciar/ }).click()
+  await page.waitForTimeout(80)
+  confirmOK = (await page.locator('[role="dialog"]').count()) > 0
+  if (confirmOK) await page.getByRole('button', { name: /Cancelar/ }).click()
+
+  // Contador de pistas y deshabilitado al agotarse
+  let hintDisabled = false
+  const hintBtn = page.getByRole('button', { name: /Pista/ })
+  for (let i = 0; i < 30; i++) { if (await hintBtn.isDisabled()) break; await hintBtn.click(); await page.waitForTimeout(25) }
+  hintDisabled = await hintBtn.isDisabled()
+
+  // Pestañas de ayuda IOS
+  let helpTabsOK = false
+  await page.locator('summary', { hasText: 'Ayuda rápida' }).click()
+  await page.waitForTimeout(50)
+  const ruteo = page.getByRole('button', { name: 'Ruteo' })
+  if (await ruteo.count()) { await ruteo.click(); await page.waitForTimeout(50); helpTabsOK = (await page.getByText(/router ospf 1/).count()) > 0 }
+
   // Popup de puertos dentro del contenedor
   await page.getByRole('button', { name: /Cablear/ }).click()
   await page.waitForTimeout(80)
@@ -99,6 +119,9 @@ try {
   console.log('Placas fuera del lienzo: ' + outCanvas)
   console.log('Popup desbordado: ' + popupBad)
   console.log('Etiquetas < 7px: ' + tinyLabels)
+  console.log('Confirmación al Reiniciar: ' + (confirmOK ? 'OK' : 'FALLA'))
+  console.log('Pista se deshabilita al agotarse: ' + (hintDisabled ? 'OK' : 'FALLA'))
+  console.log('Pestañas de ayuda IOS: ' + (helpTabsOK ? 'OK' : 'FALLA'))
   console.log('Errores de runtime: ' + errors.length)
   if (errors.length) console.log(errors.slice(0, 8).join('\n'))
   if (examples.length) console.log('Ejemplos: ' + [...new Set(examples)].join(' | '))
