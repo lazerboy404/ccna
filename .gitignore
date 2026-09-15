@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Local env / secrets
+.env
+.env.*
+*.local
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Config personal de Command Code (skills/taste locales, no forma parte de la app)
+.commandcode/
+
+# Logs
+*.log
+npm-debug.log*

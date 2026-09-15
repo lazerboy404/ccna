@@ -1,0 +1,2248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCNA Lab Simulator — Redes e Infraestructura</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+<style>
+  :root{
+    --bg:#070d1a; --panel:#0d1830ee; --panel2:#0a1428; --border:#1d3054;
+    --text:#dbe7f8; --muted:#8aa2c4; --accent:#22d3ee; --accent2:#0ea5e9;
+    --ok:#22c55e; --err:#ef4444; --warn:#f59e0b; --purple:#a78bfa;
+    --mono:'Cascadia Code','Consolas','SF Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:radial-gradient(1200px 700px at 80% -10%, #10233f 0%, var(--bg) 55%);
+    color:var(--text); font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    font-size:14px; overflow-x:hidden;
+  }
+  button{font-family:inherit;cursor:pointer}
+  header{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:10px 18px;border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,#0b1831f2,#0a1122f2);
+    position:sticky;top:0;z-index:50;backdrop-filter:blur(6px);
+  }
+  .logo{display:flex;align-items:center;gap:10px;margin-right:4px}
+  .logo svg{width:30px;height:30px}
+  .logo h1{font-size:16px;font-weight:700;letter-spacing:.3px}
+  .logo h1 span{color:var(--accent)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{
+    background:#101f3c;border:1px solid var(--border);border-radius:999px;
+    padding:4px 11px;font-size:12px;color:var(--muted);white-space:nowrap;
+  }
+  .chip b{color:var(--text);font-weight:600}
+  .chip.hot b{color:#fb923c}
+  .spacer{flex:1}
+  .hbtns{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{
+    border:1px solid var(--border);border-radius:9px;padding:8px 13px;
+    font-size:12.5px;font-weight:600;color:var(--text);background:#12213d;
+    transition:filter .15s, transform .05s;
+  }
+  .btn:hover{filter:brightness(1.25)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:linear-gradient(135deg,#0891b2,#0e7490);border-color:#155e75}
+  .btn.hint{background:linear-gradient(135deg,#b45309,#92400e);border-color:#78350f}
+  .btn.sol{background:linear-gradient(135deg,#7c3aed,#6d28d9);border-color:#5b21b6}
+  .btn.val{background:linear-gradient(135deg,#16a34a,#15803d);border-color:#166534}
+  .btn.ghost{background:transparent}
+  main{
+    display:grid;grid-template-columns:370px 1fr;gap:14px;
+    padding:14px 18px;max-width:1680px;margin:0 auto;align-items:start;
+  }
+  aside{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .card{
+    background:var(--panel);border:1px solid var(--border);border-radius:13px;
+    padding:14px;box-shadow:0 8px 24px #0006;
+  }
+  .card h2{
+    font-size:11.5px;text-transform:uppercase;letter-spacing:1.2px;
+    color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:7px;
+  }
+  .card h2 .tag{
+    margin-left:auto;background:#132547;border:1px solid var(--border);
+    color:var(--muted);border-radius:6px;padding:1px 8px;font-size:10.5px;letter-spacing:.4px;
+  }
+  .ticket-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+  .badge{border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;border:1px solid}
+  .badge.id{color:var(--accent);border-color:#164e63;background:#0c2a3a}
+  .badge.prio-Alta,.badge.prio-Crítica{color:#fca5a5;border-color:#7f1d1d;background:#2d1215}
+  .badge.prio-Media{color:#fcd34d;border-color:#78350f;background:#2b2008}
+  .badge.site{color:#c4b5fd;border-color:#4c1d95;background:#1e1640}
+  .badge.design{color:#6ee7b7;border-color:#065f46;background:#06251c}
+  .badge.scen{color:#93c5fd;border-color:#1e40af;background:#0c1d3d}
+  .badge.diff-Básico{color:#86efac;border-color:#166534;background:#0c2417}
+  .badge.diff-Intermedio{color:#fcd34d;border-color:#92400e;background:#241a05}
+  .badge.diff-Avanzado{color:#fca5a5;border-color:#991b1b;background:#2a0f12}
+  .badge.diff-Mixto{color:#67e8f9;border-color:#155e75;background:#08222e}
+  .story{
+    background:#0c2233;border-left:3px solid var(--accent);padding:9px 12px;
+    border-radius:8px;font-style:italic;color:#bfe3f5;line-height:1.55;
+    font-size:12.5px;margin-bottom:10px;
+  }
+  select.diffsel{
+    background:#12213d;border:1px solid var(--border);color:var(--text);
+    border-radius:9px;padding:8px 10px;font-size:12.5px;font-weight:600;cursor:pointer;
+  }
+  .ticket-desc{color:#c3d3ea;line-height:1.5;margin-bottom:10px}
+  .symp{list-style:none;display:flex;flex-direction:column;gap:7px;margin:8px 0}
+  .symp li{
+    background:#131f3a;border:1px solid #22345c;border-left:3px solid var(--err);
+    border-radius:8px;padding:7px 10px;font-size:12.5px;line-height:1.45;color:#d5e2f5;
+  }
+  table.plan{width:100%;border-collapse:collapse;font-size:12px}
+  table.plan th{
+    text-align:left;color:var(--muted);font-weight:600;padding:4px 6px;
+    border-bottom:1px solid var(--border);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;
+  }
+  table.plan td{padding:4px 6px;border-bottom:1px solid #14233f;font-family:var(--mono);font-size:11.5px;color:#bcd0ea}
+  details summary{cursor:pointer;color:var(--accent);font-size:12px;font-weight:600;margin-bottom:6px;user-select:none}
+  details[open] summary{margin-bottom:9px}
+  .goals{list-style:none;display:flex;flex-direction:column;gap:6px}
+  .goals li{
+    display:flex;align-items:center;gap:9px;background:#101d38;border:1px solid #1c2f55;
+    border-radius:8px;padding:6px 10px;font-size:12.5px;color:#c8d8ef;
+  }
+  .goals .ico{font-size:14px;width:18px;text-align:center;flex:none}
+  .goals li.done{border-color:#14532d;background:#0c2417}
+  .goals li.done .ico{color:var(--ok)}
+  .goals li.pending .ico{color:#47618a}
+  .hints li,.solstep{
+    background:#241d0c;border:1px solid #57421a;border-radius:8px;
+    padding:8px 10px;font-size:12.5px;line-height:1.5;color:#f1dfae;margin-bottom:7px;list-style:none;
+  }
+  .hints{list-style:none}
+  .soldev{color:var(--accent);font-family:var(--mono);font-size:11px;font-weight:700;margin-bottom:3px;letter-spacing:.4px}
+  .solstep pre{
+    font-family:var(--mono);font-size:12px;color:#d9f2e3;white-space:pre-wrap;line-height:1.55;
+  }
+  .solcard{background:#1a1035 !important;border-color:#4c1d95 !important}
+  .solcard .solstep{background:#150d2e;border-color:#4c1d95;color:#ddd0fb}
+  .hidden{display:none !important}
+  .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stat{background:#101d38;border:1px solid #1c2f55;border-radius:9px;padding:8px 10px;text-align:center}
+  .stat .v{font-size:19px;font-weight:700;color:var(--text)}
+  .stat .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-top:2px}
+  .stat.fire .v{color:#fb923c}
+  .stat.ok .v{color:var(--ok)}
+  .hist{margin-top:9px;font-size:11.5px;color:var(--muted);font-family:var(--mono);line-height:1.7}
+  .cheat{font-family:var(--mono);font-size:11.5px;color:#a9c1e0;line-height:1.8}
+  .cheat b{color:var(--accent);font-weight:600}
+  .center{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .canvas-card{padding:8px 10px 4px}
+  svg#topo{width:100%;height:auto;display:block;border-radius:10px;background:
+    radial-gradient(900px 480px at 50% 20%, #0c1a33 0%, #08101f 70%);
+    touch-action:manipulation}
+  .devg{cursor:pointer}
+  .devg:hover .iconbg{filter:brightness(1.35)}
+  .devg.active .halo{opacity:1}
+  .halo{opacity:0;transition:opacity .2s}
+  .devlabel{font:600 11.5px 'Segoe UI',sans-serif;fill:#cbd9ee;text-anchor:middle}
+  .devsub{font:10px 'Segoe UI',sans-serif;fill:#6c84a8;text-anchor:middle}
+  .portlabel{font:9px var(--mono);fill:#5f79a1;text-anchor:middle}
+  .link{stroke-width:3.5;stroke-linecap:round;transition:stroke .25s}
+  .lk-ok{stroke:var(--ok);filter:drop-shadow(0 0 3px #22c55e66)}
+  .lk-down{stroke:var(--err);filter:drop-shadow(0 0 4px #ef444477)}
+  .lk-mis{stroke:var(--warn);filter:drop-shadow(0 0 4px #f59e0b66)}
+  .lk-stp{stroke:var(--warn);stroke-dasharray:7 6;filter:drop-shadow(0 0 4px #f59e0b66)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;padding:8px 10px 10px;color:var(--muted);font-size:11.5px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .swatch{width:22px;height:0;border-top:3.5px solid;border-radius:2px}
+  .term-card{padding:0;overflow:hidden}
+  .term-tabs{display:flex;gap:5px;padding:9px 11px 0;flex-wrap:wrap;align-items:center}
+  .tab{
+    background:#0f1e3a;border:1px solid var(--border);border-bottom:none;
+    color:var(--muted);font-size:11.5px;font-family:var(--mono);font-weight:600;
+    padding:5px 11px;border-radius:8px 8px 0 0;
+  }
+  .tab.active{color:#67e8f9;background:#050b14;border-color:#155e75}
+  .term-title{margin-left:auto;color:var(--muted);font-size:11px;padding-bottom:6px}
+  .term{
+    background:#050b14;border-top:1px solid #12314e;padding:12px 14px;
+    height:285px;display:flex;flex-direction:column;font-family:var(--mono);font-size:13px;
+  }
+  .term-out{flex:1;overflow-y:auto;white-space:pre-wrap;word-break:break-word;line-height:1.5;color:#d7e3f4;padding-right:6px}
+  .term-out::-webkit-scrollbar{width:9px}
+  .term-out::-webkit-scrollbar-thumb{background:#1c3a5e;border-radius:5px}
+  .term-out .cmd{color:#67e8f9}
+  .term-out .err{color:#fca5a5}
+  .term-out .ok{color:#86efac}
+  .term-out .dim{color:#7289ab}
+  .term-out .hdr{color:#fcd34d}
+  .term-in-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .term-prompt{color:#86efac;font-weight:700;white-space:nowrap}
+  #termIn{
+    flex:1;background:transparent;border:none;outline:none;color:#eaf4ff;
+    font-family:var(--mono);font-size:13px;caret-color:var(--accent);
+  }
+  .term-placeholder{
+    flex:1;display:flex;align-items:center;justify-content:center;color:#41597c;
+    font-size:13px;text-align:center;line-height:1.8;
+  }
+  .modal-bg{
+    position:fixed;inset:0;background:#030711c9;z-index:100;display:flex;
+    align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);
+  }
+  .modal{
+    background:#0c1730;border:1px solid #27456f;border-radius:16px;max-width:640px;width:100%;
+    padding:22px;box-shadow:0 24px 80px #000a;max-height:88vh;overflow-y:auto;
+  }
+  .modal h3{font-size:17px;margin-bottom:4px}
+  .modal .score-big{font-size:44px;font-weight:800;margin:6px 0 2px}
+  .score-big.good{color:var(--ok)} .score-big.bad{color:var(--warn)}
+  .modal .sub{color:var(--muted);font-size:12.5px;margin-bottom:14px}
+  .vgoal{
+    display:flex;gap:10px;align-items:flex-start;background:#101d38;border:1px solid #1c2f55;
+    border-radius:9px;padding:8px 11px;margin-bottom:7px;font-size:12.5px;line-height:1.5;
+  }
+  .vgoal.ok{border-color:#14532d}
+  .vgoal.bad{border-color:#7f1d1d}
+  .vgoal .gi{font-size:15px;flex:none;margin-top:1px}
+  .vgoal .gr{color:#f0b4b4;font-size:11.5px;margin-top:3px;font-family:var(--mono)}
+  .modal .mbtns{display:flex;gap:9px;margin-top:15px;justify-content:flex-end}
+  #toasts{position:fixed;right:16px;bottom:16px;z-index:200;display:flex;flex-direction:column;gap:8px}
+  .toast{
+    background:#12213df5;border:1px solid #2a4a7a;border-left:4px solid var(--accent);
+    color:var(--text);border-radius:9px;padding:10px 14px;font-size:12.5px;
+    box-shadow:0 10px 30px #0009;animation:tin .25s ease;max-width:340px;
+  }
+  .toast.ok{border-left-color:var(--ok)} .toast.err{border-left-color:var(--err)}
+  @keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @media (max-width:1080px){
+    main{grid-template-columns:1fr}
+    aside{order:2}
+    .center{order:1}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#22d3ee" stroke-width="1.6"/><path d="M7 12h10M12 7v10M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="#22d3ee" stroke-width="1.4" stroke-linecap="round"/></svg>
+    <h1>CCNA <span>Lab Simulator</span></h1>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div class="spacer"></div>
+  <div class="hbtns">
+    <select id="selDiff" class="diffsel" title="Dificultad del próximo laboratorio">
+      <option value="any">🎲 Sorpresa</option>
+      <option value="Básico">🟢 Básico</option>
+      <option value="Intermedio">🟠 Intermedio</option>
+      <option value="Avanzado">🔴 Avanzado</option>
+    </select>
+    <button class="btn primary" id="btnNew">🆕 Nuevo Laboratorio</button>
+    <button class="btn ghost" id="btnReset">↺ Reiniciar</button>
+    <button class="btn hint" id="btnHint">💡 Pedir Pista</button>
+    <button class="btn sol" id="btnSolution">📖 Ver Solución</button>
+    <button class="btn val" id="btnValidate">✅ Validar Laboratorio</button>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <section class="card">
+      <h2>🎫 Ticket de Soporte <span class="tag" id="tagDesign"></span></h2>
+      <div class="ticket-meta" id="ticketMeta"></div>
+      <div class="story" id="ticketStory"></div>
+      <div class="ticket-desc" id="ticketDesc"></div>
+      <ul class="symp" id="ticketSymp"></ul>
+      <details open id="planBox">
+        <summary>Plan de direccionamiento (documentación del cliente)</summary>
+        <table class="plan" id="planTable"></table>
+        <div class="ticket-desc" id="planNote" style="font-size:11.5px;margin-top:8px"></div>
+      </details>
+      <details>
+        <summary>Topología afectada</summary>
+        <ul class="symp" id="topoList" style="margin:4px 0 0"></ul>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>🎯 Objetivos del Cliente</h2>
+      <ul class="goals" id="goalsList"></ul>
+    </section>
+
+    <section class="card hidden" id="hintsCard">
+      <h2>💡 Pistas</h2>
+      <ul class="hints" id="hintsList"></ul>
+    </section>
+
+    <section class="card solcard hidden" id="solutionCard">
+      <h2>📖 Solución Paso a Paso <span class="tag" id="solPenalty"></span></h2>
+      <div id="solutionBody"></div>
+      <button class="btn ghost" id="btnCopySol" style="width:100%;margin-top:8px">📋 Copiar comandos</button>
+    </section>
+
+    <section class="card">
+      <h2>📊 Estadísticas</h2>
+      <div class="stats-grid">
+        <div class="stat fire"><div class="v" id="stStreak">0</div><div class="l">🔥 Racha</div></div>
+        <div class="stat fire"><div class="v" id="stBest">0</div><div class="l">Mejor racha</div></div>
+        <div class="stat ok"><div class="v" id="stSolved">0</div><div class="l">Resueltos</div></div>
+        <div class="stat"><div class="v" id="stScore">—</div><div class="l">Mejor puntaje</div></div>
+      </div>
+      <div class="hist" id="stHist"></div>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary>⌨️ Ayuda rápida de comandos IOS</summary>
+        <div class="cheat">
+          <b>enable</b> → modo privilegiado · <b>configure terminal</b> → modo config<br>
+          <b>interface Gi0/1</b> · <b>no shutdown</b> · <b>shutdown</b><br>
+          <b>ip address 10.0.0.1 255.255.255.0</b> (routers/SVI)<br>
+          <b>vlan 20</b> → <b>name VENTAS</b><br>
+          <b>switchport mode access|trunk</b> · <b>switchport access vlan 20</b><br>
+          <b>switchport trunk allowed vlan 20,30|all|add 30</b><br>
+          <b>spanning-tree portfast [trunk]</b> (destraba puerto STP)<br>
+          <b>ip route 10.0.20.0 255.255.255.0 10.0.99.2</b> · <b>ip route 0.0.0.0 0.0.0.0 x.x.x.x</b><br>
+          <b>router ospf 1</b> → <b>network 10.0.10.0 0.0.0.255 area 0</b><br>
+          <b>show ip interface brief</b> · <b>show ip route</b> · <b>show vlan brief</b><br>
+          <b>show interfaces trunk</b> · <b>show spanning-tree brief</b> · <b>show ip arp</b><br>
+          <b>show running-config</b> · <b>show ip protocols</b> · <b>ping &lt;ip&gt;</b> · <b>hostname X</b><br>
+          En PCs: <b>ipconfig</b> · <b>ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt;</b> · <b>ping &lt;ip&gt;</b>
+        </div>
+      </details>
+    </section>
+  </aside>
+
+  <div class="center">
+    <section class="card canvas-card">
+      <svg id="topo" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="legend">
+        <span><span class="swatch" style="border-color:#22c55e"></span> Up/Up (verde)</span>
+        <span><span class="swatch" style="border-color:#ef4444"></span> Down / shutdown / falla (rojo)</span>
+        <span><span class="swatch" style="border-color:#f59e0b"></span> STP bloqueado o VLAN mismatch (naranja)</span>
+        <span style="margin-left:auto">Clic en un dispositivo → abre su consola CLI</span>
+      </div>
+    </section>
+
+    <section class="card term-card">
+      <div class="term-tabs" id="termTabs"><div class="term-title" id="termTitle"></div></div>
+      <div class="term">
+        <div class="term-out hidden" id="termOut"></div>
+        <div class="term-placeholder" id="termPlaceholder">
+          🔌 Haz clic en un dispositivo del diagrama (o en una pestaña)<br>
+          para conectar su cable de consola y abrir la CLI de Cisco IOS.
+        </div>
+        <div class="term-in-row hidden" id="termInRow">
+          <span class="term-prompt" id="termPrompt"></span>
+          <input id="termIn" autocomplete="off" spellcheck="false" autofocus>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="modal-bg hidden" id="modal">
+  <div class="modal">
+    <h3 id="modalTitle">Resultado de la validación</h3>
+    <div class="score-big" id="modalScore"></div>
+    <div class="sub" id="modalSub"></div>
+    <div id="modalBody"></div>
+    <div class="mbtns">
+      <button class="btn ghost" id="btnModalClose">Cerrar</button>
+      <button class="btn primary" id="btnModalNew">🆕 Siguiente Laboratorio</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+"use strict";
+
+/* ============================== ESTADO GLOBAL ============================== */
+const S = { lab:null, cli:{}, active:null, stats:null, eng:null, el:{links:{},titles:{},devs:{}} };
+const INTERNET = '8.8.8.8';
+const $ = id => document.getElementById(id);
+
+/* ============================== UTILERÍAS ============================== */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function ipToInt(ip){const p=String(ip).split('.');return(((+p[0]<<24)|(+p[1]<<16)|(+p[2]<<8)|(+p[3]))>>>0);}
+function intToIp(n){n=n>>>0;return [(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255].join('.');}
+function netOf(ip,mask){return intToIp(ipToInt(ip)&ipToInt(mask));}
+function inSubnet(ip,net,mask){return (ipToInt(ip)&ipToInt(mask))===ipToInt(net);}
+function maskLen(m){let n=ipToInt(m),c=0;while(n){c+=n&1;n>>>=1;}return c;}
+function lenMask(l){return intToIp(l===0?0:(0xFFFFFFFF<<(32-l)));}
+function wildOf(mask){return intToIp(~ipToInt(mask));}
+function validIp(s){if(!/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(s))return false;return s.split('.').every(o=>+o<=255);}
+function parseMask(s){if(s.includes('/'))return lenMask(+s.split('/')[1]);return s;}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function macOf(key){const h=hashStr(key);const b=[0xfa,0x16,(h>>>24)&255,(h>>>16)&255,(h>>>8)&255,h&255];const hex=b.map(x=>x.toString(16).padStart(2,'0')).join('');return hex.slice(0,4)+'.'+hex.slice(4,8)+'.'+hex.slice(8,12);}
+function pad(s,n){s=String(s);return s.length>=n?s:s+' '.repeat(n-s.length);}
+const M24='255.255.255.0', M30='255.255.255.252', M16='255.255.0.0', M0='0.0.0.0';
+
+/* ============================== GENERADOR DE LABORATORIO ============================== */
+const SITES=['Monterrey','Guadalajara','CDMX','Puebla','Tijuana','Merida','Queretaro','Leon','Cancun','Toluca'];
+const TECHS=['Ana Torres','Luis Gomez','Maria Ruiz','Carlos Diaz','Sofia Vera','Diego Rios','Paula Mendez'];
+const PRIOS=['Alta','Media','Crítica'];
+
+/* ============================== ESCENARIOS DE LA VIDA REAL ============================== */
+const SCENARIOS=[
+{key:'b-cable',diff:'Básico',title:'El cable muerto',design:null,sw3:null,faultKeys:['shut-pc2'],
+ story:s=>'«Buenos días, la PC de Ventas ('+s.names.pc2+') amaneció sin red: Windows dice "cable desconectado" y el foquito del puerto está apagado. El resto del piso trabaja normal.» — Recepción'},
+{key:'b-troncal',diff:'Básico',title:'Medio piso muerto',design:null,sw3:null,faultKeys:['shut-trunk'],
+ story:s=>'«Desde que movieron los cables del site por la limpieza, Ventas y Soporte no tienen red de ningún tipo. Los de Admin (que están en el core) sí trabajan.» — Soporte de TI'},
+{key:'b-ip-manual',diff:'Básico',title:'La IP que alguien tocó',design:null,sw3:null,faultKeys:['wrong-pc-ip'],
+ story:s=>'«Ayer le puse IP manual a mi PC para "arreglar un candado" y desde entonces no entro a nada: ni a la intranet ni a internet. Mi compañero de al lado sí trabaja.» — Ana, Ventas'},
+{key:'b-transito',diff:'Básico',title:'Red local sin salida',design:null,sw3:null,faultKeys:['shut-transit'],
+ story:s=>'«Reporte general de la sucursal: entre oficinas y carpetas compartidas todo funciona, pero nadie abre páginas ni correo. Pasa en todas las áreas por igual.» — Gerencia'},
+{key:'b-vlan-fantasma',diff:'Básico',title:'El switch que olvidó una VLAN',design:null,sw3:null,faultKeys:['missing-vlan'],
+ story:s=>'«Hubo un apagón, reiniciaron el switch de acceso y desde entonces la gente de Soporte está muerta: el cable está conectado pero el puerto del switch no prende en verde.» — Soporte de TI'},
+{key:'i-gateway-fantasma',diff:'Intermedio',title:'El gateway fantasma',design:null,sw3:null,faultKeys:['wrong-svi'],
+ story:s=>'«Todo Ventas dice que tiene cable e IP correcta, pero no sale nada: el ping a su gateway ('+s.nets.ventas.gw+') no responde. Admin y Soporte trabajan sin problema.» — Jefe de Ventas'},
+{key:'i-usuario-solitario',diff:'Intermedio',title:'El usuario solitario',design:null,sw3:null,faultKeys:['wrong-access-vlan'],
+ story:s=>'«Un solo usuario se queja (Soporte): "mi PC prende y tiene IP correcta, pero no alcanzo nada, ni al de al lado". Su compañero de Ventas, conectado al MISMO switch, funciona perfecto.» — Mesa de ayuda'},
+{key:'i-loop',diff:'Intermedio',title:'El loop del viernes',design:null,sw3:null,faultKeys:['stp-block'],
+ story:s=>'«Alguien conectó un switch viejo en cascada "para tener más puertos" y la red del piso se cayó. Ya desconectaron el switchcito, pero el troncal sigue sin pasar tráfico y hay un LED ámbar en el switch.» — Soporte de TI'},
+{key:'i-soporte-sin-net',diff:'Intermedio',title:'Navegar a medias',design:'static',sw3:null,faultKeys:['missing-static-route'],
+ story:s=>'«La gente de Soporte reporta: "en la red local todo bien, hasta imprimimos, pero internet no abre nada, ni sale el ping". Ventas y Admin navegan sin problema.» — Soporte de TI'},
+{key:'i-puerta-perdida',diff:'Intermedio',title:'Se fue la puerta',design:'static',sw3:null,faultKeys:['missing-default-sw1'],
+ story:s=>'«Queja general: la red interna vuela (ping entre áreas OK) pero no sale ni un solo ping a internet en NINGUNA área. El módem del ISP tiene sus luces normales.» — Gerencia'},
+{key:'i-ospf-mudo',diff:'Intermedio',title:'Rutas que no se hablan',design:'ospf',sw3:null,faultKeys:['ospf-down'],
+ story:s=>'«Después del mantenimiento nocturno del core, toda la sucursal perdió internet aunque la red local funciona. Aquí el ruteo dinámico entre router y switch L3 es OSPF área 0.» — Soporte de TI'},
+{key:'a-turno-nocturno',diff:'Avanzado',title:'Turno nocturno',design:null,sw3:null,faultKeys:['shut-transit','wrong-access-vlan'],
+ story:s=>'«El turno de noche "reconfiguró" varias cosas. Reporte mixto del lunes: NINGÚN área tiene internet; Admin y Ventas sí se ven en red local; y Soporte no tiene absolutamente nada. Dos problemas distintos se encimaron: diagnostica por capas.» — Gerencia'},
+{key:'a-tecnico-externo',diff:'Avanzado',title:'El técnico externo',design:null,sw3:null,faultKeys:['trunk-mode','missing-vlan'],
+ story:s=>'«Vino un técnico externo a "ordenar" el switch de acceso y ahora Ventas y Soporte están completamente muertos; solo Admin (que vive en el core) trabaja. El enlace entre switches se ve raro.» — Soporte de TI'},
+{key:'a-doble-reporte',diff:'Avanzado',title:'Doble reporte confuso',design:null,sw3:null,faultKeys:['stp-block','wrong-pc-ip'],
+ story:s=>'«Primero se cayó todo el piso de abajo por un loop; cuando el troncal revivió, la PC de Ventas siguió sin dar ping a su gateway — dicen que alguien le dejó IP manual rara durante el caos. Dos fallas en dos capas distintas.» — Mesa de ayuda'},
+{key:'a-planta-nueva',diff:'Avanzado',title:'La planta nueva',design:null,sw3:true,faultKeys:['shut-sw3trunk','wrong-access-vlan'],
+ story:s=>'«Contabilidad (planta nueva, switch recién agregado) perdió TODA su red de golpe. Y aparte, el de Soporte dice que su PC tiene IP correcta pero no alcanza nada. Ventas y Admin trabajan bien.» — Gerencia'},
+{key:'a-lunes-negro',diff:'Avanzado',title:'Lunes negro',design:null,sw3:null,faultKeys:['shut-pc2','wrong-svi','trunk-allowed'],
+ story:s=>'«Tres tickets el mismo lunes: (1) una PC de Ventas sin enlace, (2) todo Ventas sin alcanzar su gateway, (3) Soporte aislado del resto. Admin opera sin problema. Prioridad crítica.» — Mesa de ayuda'},
+{key:'sorpresa',diff:'Mixto',title:'Incidente sin clasificar',design:null,sw3:null,faultKeys:null,
+ story:s=>'«La red "no sirve bien" — dice el cliente. Hay varios reportes sueltos y nadie sabe por dónde empezar. Lee los síntomas del ticket y diagnostica desde la capa física hacia arriba.» — Mesa de ayuda'}
+];
+
+function pickScenario(rnd,pref){
+  let pool=SCENARIOS;
+  if(pref&&pref!=='any'){
+    const f=SCENARIOS.filter(sc=>sc.diff===pref);
+    if(f.length)pool=f;
+  }
+  return pool[Math.floor(rnd()*pool.length)];
+}
+
+function generateSpec(seed,sc){
+  const rnd=mulberry32(seed>>>0);
+  const R=n=>Math.floor(rnd()*n);
+  const pick=a=>a[R(a.length)];
+  const site=pick(SITES);
+  const B=16+R(200);
+  const all=[10,15,100,110,105];
+  const va=pick(all);
+  let vv=pick([20,25,200,120]); if(vv===va)vv=20;
+  let vs=pick([30,35,300,130]); if(vs===va||vs===vv)vs=30;
+  const vc=pick([40,45,140]);
+  const fw=rnd()<0.75;
+  const sw3=(sc&&sc.sw3===true)?true:(rnd()<0.35);
+  const wanDesign=(sc&&sc.design)?sc.design:(rnd()<0.5?'static':'ospf');
+  const w1=4+4*R(50);
+  const w2=w1+4+4*R(8);
+  return {
+    seed:seed>>>0, site, B, va, vv, vs, vc, transit:99, wanDesign,
+    topo:{fw:fw,sw3:sw3},
+    ticket:{id:'TK-'+(1000+R(9000)), tech:pick(TECHS), prio:pick(PRIOS)},
+    names:{isp:'INTERNET (ISP)', fw:'FW-'+site, r1:'R1-'+site, sw1:'SW1-CORE-'+site, sw2:'SW2-ACC-'+site, sw3:'SW3-CONTAB-'+site, pc1:'PC-ADMIN', pc2:'PC-VENTAS', pc3:'PC-SOPORTE', pc4:'PC-CONTAB'},
+    nets:{
+      admin:{net:'10.'+B+'.10.0', gw:'10.'+B+'.10.1'},
+      ventas:{net:'10.'+B+'.20.0', gw:'10.'+B+'.20.1'},
+      soporte:{net:'10.'+B+'.30.0', gw:'10.'+B+'.30.1'},
+      contab:{net:'10.'+B+'.40.0', gw:'10.'+B+'.40.1'},
+      transit:{net:'10.'+B+'.99.0', r1:'10.'+B+'.99.1', sw1:'10.'+B+'.99.2'}
+    },
+    pcs:{admin:'10.'+B+'.10.10', ventas:'10.'+B+'.20.10', soporte:'10.'+B+'.30.10', contab:'10.'+B+'.40.10'},
+    wan: fw
+      ? {fw:true, ispNet:'203.0.113.'+w1, ispIp:'203.0.113.'+(w1+1), fwWanIp:'203.0.113.'+(w1+2),
+         r1fwNet:'203.0.113.'+w2, r1WanIp:'203.0.113.'+(w2+1), fwLanIp:'203.0.113.'+(w2+2)}
+      : {fw:false, ispNet:'203.0.113.'+w1, ispIp:'203.0.113.'+(w1+1), r1WanIp:'203.0.113.'+(w1+2)}
+  };
+}
+
+function rif(ip,mask,desc){return {kind:'routed',ip:ip,mask:mask,status:'up',desc:desc||''};}
+function rport(mode,vlan,allowed,desc){return {kind:'port',mode:mode,accessVlan:vlan!==undefined?vlan:null,allowed:allowed||[],status:'up',desc:desc||''};}
+function rsvi(ip,mask){return {kind:'svi',ip:ip,mask:mask,status:'up'};}
+
+function buildDevices(s){
+  const B=s.B;
+  const ospfNets=[
+    {net:s.nets.transit.net,wild:'0.0.0.255',area:0},
+    {net:s.nets.admin.net,wild:'0.0.0.255',area:0},
+    {net:s.nets.ventas.net,wild:'0.0.0.255',area:0},
+    {net:s.nets.soporte.net,wild:'0.0.0.255',area:0}
+  ];
+  if(s.topo.sw3)ospfNets.push({net:s.nets.contab.net,wild:'0.0.0.255',area:0});
+  const wanVia=s.topo.fw?s.wan.fwLanIp:s.wan.ispIp;
+  const lanRoutes=[
+    {net:s.nets.admin.net,mask:M24,via:s.nets.transit.sw1},
+    {net:s.nets.ventas.net,mask:M24,via:s.nets.transit.sw1},
+    {net:s.nets.soporte.net,mask:M24,via:s.nets.transit.sw1}
+  ];
+  if(s.topo.sw3)lanRoutes.push({net:s.nets.contab.net,mask:M24,via:s.nets.transit.sw1});
+  const sw1Vlans={99:'TRANSITO',[s.va]:'ADMIN',[s.vv]:'VENTAS',[s.vs]:'SOPORTE'};
+  const sw1Ifaces={
+    'Gi0/1':rport('access',99,null,'Uplink a R1 (VLAN tránsito)'),
+    'Gi0/2':rport('trunk',null,[s.vv,s.vs],'Troncal 802.1Q a SW2'),
+    'Gi0/3':rport('access',s.va,null,'Acceso PC-ADMIN'),
+    'Vlan99':rsvi(s.nets.transit.sw1,M24),
+    ['Vlan'+s.va]:rsvi(s.nets.admin.gw,M24),
+    ['Vlan'+s.vv]:rsvi(s.nets.ventas.gw,M24),
+    ['Vlan'+s.vs]:rsvi(s.nets.soporte.gw,M24)
+  };
+  const sw1Stp={'Gi0/1':'forwarding','Gi0/2':'forwarding','Gi0/3':'forwarding'};
+  if(s.topo.sw3){
+    sw1Vlans[s.vc]='CONTABILIDAD';
+    sw1Ifaces['Gi0/4']=rport('trunk',null,[s.vc],'Troncal 802.1Q a SW3 (Contabilidad)');
+    sw1Ifaces['Vlan'+s.vc]=rsvi(s.nets.contab.gw,M24);
+    sw1Stp['Gi0/4']='forwarding';
+  }
+  const devs={};
+  devs.ISP={id:'ISP',name:s.names.isp,type:'isp',role:'Nube WAN / Internet',interfaces:{'Gi0/0':rif(s.wan.ispIp,M30,'Enlace ISP')},staticRoutes:[],vlans:null,ospf:null};
+  if(s.topo.fw){
+    devs.FW1={id:'FW1',name:s.names.fw,type:'firewall',role:'Firewall perimetral',
+      interfaces:{'Gi0/0':rif(s.wan.fwWanIp,M30,'WAN hacia ISP'),'Gi0/1':rif(s.wan.fwLanIp,M30,'LAN hacia R1')},
+      staticRoutes:[{net:'0.0.0.0',mask:'0.0.0.0',via:s.wan.ispIp},{net:'10.'+B+'.0.0',mask:M16,via:s.wan.r1WanIp}],
+      vlans:null,ospf:{enabled:false,process:1,networks:[]}};
+  }
+  devs.R1={id:'R1',name:s.names.r1,type:'router',role:'Router de sucursal (NAT hacia Internet)',
+    interfaces:{'Gi0/0':rif(s.wan.r1WanIp,M30,s.topo.fw?'WAN hacia FW1':'WAN hacia ISP'),'Gi0/1':rif(s.nets.transit.r1,M24,'Tránsito VLAN 99 hacia SW1')},
+    staticRoutes:s.wanDesign==='static'
+      ? [{net:'0.0.0.0',mask:'0.0.0.0',via:wanVia}].concat(lanRoutes)
+      : [{net:'0.0.0.0',mask:'0.0.0.0',via:wanVia}],
+    vlans:null,
+    ospf:s.wanDesign==='ospf'?{enabled:true,process:1,networks:[{net:s.nets.transit.net,wild:'0.0.0.255',area:0}]}:{enabled:false,process:1,networks:[]}};
+  devs.SW1={id:'SW1',name:s.names.sw1,type:'l3switch',role:'Switch L3 core (gateway de las VLAN, router-on-a-stick)',
+    vlans:sw1Vlans,
+    interfaces:sw1Ifaces,
+    stp:sw1Stp,portfast:{},
+    staticRoutes:[{net:'0.0.0.0',mask:'0.0.0.0',via:s.nets.transit.r1}],
+    ospf:s.wanDesign==='ospf'?{enabled:true,process:1,networks:ospfNets.slice()}:{enabled:false,process:1,networks:[]}};
+  devs.SW2={id:'SW2',name:s.names.sw2,type:'l2switch',role:'Switch L2 de acceso (planta baja)',
+    vlans:{[s.vv]:'VENTAS',[s.vs]:'SOPORTE'},
+    interfaces:{
+      'Gi0/1':rport('trunk',null,[s.vv,s.vs],'Troncal 802.1Q a SW1'),
+      'Gi0/2':rport('access',s.vv,null,'Acceso PC-VENTAS'),
+      'Gi0/3':rport('access',s.vs,null,'Acceso PC-SOPORTE')
+    },
+    stp:{'Gi0/1':'forwarding','Gi0/2':'forwarding','Gi0/3':'forwarding'},portfast:{},
+    staticRoutes:[],ospf:null};
+  if(s.topo.sw3){
+    devs.SW3={id:'SW3',name:s.names.sw3,type:'l2switch',role:'Switch L2 de Contabilidad (planta nueva)',
+      vlans:{[s.vc]:'CONTABILIDAD'},
+      interfaces:{
+        'Gi0/1':rport('trunk',null,[s.vc],'Troncal 802.1Q a SW1'),
+        'Gi0/2':rport('access',s.vc,null,'Acceso PC-CONTAB')
+      },
+      stp:{'Gi0/1':'forwarding','Gi0/2':'forwarding'},portfast:{},
+      staticRoutes:[],ospf:null};
+  }
+  devs.PC1={id:'PC1',name:s.names.pc1,type:'pc',role:'PC del área administrativa (VLAN '+s.va+')',interfaces:{},pc:{ip:s.pcs.admin,mask:M24,gw:s.nets.admin.gw}};
+  devs.PC2={id:'PC2',name:s.names.pc2,type:'pc',role:'PC del área de ventas (VLAN '+s.vv+')',interfaces:{},pc:{ip:s.pcs.ventas,mask:M24,gw:s.nets.ventas.gw}};
+  devs.PC3={id:'PC3',name:s.names.pc3,type:'pc',role:'PC del área de soporte (VLAN '+s.vs+')',interfaces:{},pc:{ip:s.pcs.soporte,mask:M24,gw:s.nets.soporte.gw}};
+  if(s.topo.sw3){
+    devs.PC4={id:'PC4',name:s.names.pc4,type:'pc',role:'PC de Contabilidad (VLAN '+s.vc+')',interfaces:{},pc:{ip:s.pcs.contab,mask:M24,gw:s.nets.contab.gw}};
+  }
+  return devs;
+}
+
+function buildLinks(s){
+  const L=[];
+  if(s.topo.fw){
+    L.push({id:'L1',a:{dev:'ISP',port:'Gi0/0'},b:{dev:'FW1',port:'Gi0/0'},kind:'wan',label:'WAN ISP'});
+    L.push({id:'L2',a:{dev:'FW1',port:'Gi0/1'},b:{dev:'R1',port:'Gi0/0'},kind:'wan',label:'WAN interna'});
+  }else{
+    L.push({id:'L1',a:{dev:'ISP',port:'Gi0/0'},b:{dev:'R1',port:'Gi0/0'},kind:'wan',label:'WAN ISP'});
+  }
+  L.push({id:'L3',a:{dev:'R1',port:'Gi0/1'},b:{dev:'SW1',port:'Gi0/1'},kind:'eth',label:'VLAN 99 tránsito'});
+  L.push({id:'L4',a:{dev:'SW1',port:'Gi0/2'},b:{dev:'SW2',port:'Gi0/1'},kind:'eth',label:'Troncal 802.1Q'});
+  L.push({id:'L5',a:{dev:'SW1',port:'Gi0/3'},b:{dev:'PC1'},kind:'eth',label:'Acceso ADMIN'});
+  L.push({id:'L6',a:{dev:'SW2',port:'Gi0/2'},b:{dev:'PC2'},kind:'eth',label:'Acceso VENTAS'});
+  L.push({id:'L7',a:{dev:'SW2',port:'Gi0/3'},b:{dev:'PC3'},kind:'eth',label:'Acceso SOPORTE'});
+  if(s.topo.sw3){
+    L.push({id:'L8',a:{dev:'SW1',port:'Gi0/4'},b:{dev:'SW3',port:'Gi0/1'},kind:'eth',label:'Troncal CONTAB'});
+    L.push({id:'L9',a:{dev:'SW3',port:'Gi0/2'},b:{dev:'PC4'},kind:'eth',label:'Acceso CONTAB'});
+  }
+  return L;
+}
+
+function buildGoals(s){
+  const g=[
+    {id:'g1',label:s.names.pc1+' ('+s.pcs.admin+') → Gateway ADMIN '+s.nets.admin.gw,src:'PC1',dst:s.nets.admin.gw},
+    {id:'g2',label:s.names.pc2+' ('+s.pcs.ventas+') → Gateway VENTAS '+s.nets.ventas.gw,src:'PC2',dst:s.nets.ventas.gw},
+    {id:'g3',label:s.names.pc1+' → '+s.names.pc2+' (enrutamiento inter-VLAN)',src:'PC1',dst:s.pcs.ventas},
+    {id:'g4',label:s.names.pc2+' → '+s.names.pc3+' (enrutamiento inter-VLAN)',src:'PC2',dst:s.pcs.soporte},
+    {id:'g5',label:s.names.pc1+' → Internet ('+INTERNET+') vía NAT en R1',src:'PC1',dst:INTERNET},
+    {id:'g6',label:s.names.pc3+' → Internet ('+INTERNET+') vía NAT en R1',src:'PC3',dst:INTERNET}
+  ];
+  if(s.topo.sw3){
+    g.push({id:'g7',label:s.names.pc4+' ('+s.pcs.contab+') → Gateway CONTAB '+s.nets.contab.gw,src:'PC4',dst:s.nets.contab.gw});
+    g.push({id:'g8',label:s.names.pc4+' → Internet ('+INTERNET+') vía NAT en R1',src:'PC4',dst:INTERNET});
+  }
+  return g;
+}
+
+/* ============================== CATÁLOGO DE FALLAS ============================== */
+function makeFaults(s,rnd){
+  const B=s.B, va=s.va, vv=s.vv, vs=s.vs;
+  const n=s.names, nets=s.nets;
+  const F=[];
+  const trunkSide=rnd()<0.5?{dev:'SW1',port:'Gi0/2'}:{dev:'SW2',port:'Gi0/1'};
+  const transitSide=rnd()<0.5?{dev:'R1',port:'Gi0/1'}:{dev:'SW1',port:'Gi0/1'};
+  const stpSide=rnd()<0.5?{dev:'SW1',port:'Gi0/2'}:{dev:'SW2',port:'Gi0/1'};
+  const ospfSide=rnd()<0.5?'SW1':'R1';
+
+  F.push({key:'shut-trunk',design:null,title:'Troncal apagado',category:'Interfaz en shutdown',
+    devId:trunkSide.dev,port:trunkSide.port,
+    symptom:'Ventas y Soporte perdieron TODA la conectividad con el core de red. El LED del enlace entre switches está apagado.',
+    hints:['Un cable rojo entre los dos switches indica un enlace físicamente caído: identifica en qué extremo hicieron shutdown.',
+           'Ejecuta show ip interface brief en '+n[trunkSide.dev.toLowerCase()]+'; el puerto '+trunkSide.port+' aparecerá "down". Entra al modo interfaz y reactívalo.'],
+    solution:[{devId:trunkSide.dev,cmds:['enable','configure terminal','interface '+trunkSide.port,'no shutdown','end']}],
+    apply:d=>{d[trunkSide.dev].interfaces[trunkSide.port].status='down';}});
+
+  F.push({key:'shut-pc2',design:null,title:'Puerto de acceso apagado',category:'Interfaz en shutdown',
+    devId:'SW2',port:'Gi0/2',
+    symptom:n.pc2+' reporta "cable de red desconectado" desde esta mañana; el resto de la sucursal trabaja normal.',
+    hints:['El enlace hacia '+n.pc2+' está en rojo en el diagrama: el puerto de acceso del switch puede estar apagado.',
+           'Revisa show ip interface brief en '+n.sw2+' y reactiva Gi0/2 si aparece administratively down.'],
+    solution:[{devId:'SW2',cmds:['enable','configure terminal','interface Gi0/2','no shutdown','end']}],
+    apply:d=>{d.SW2.interfaces['Gi0/2'].status='down';}});
+
+  F.push({key:'shut-transit',design:null,title:'Enlace de tránsito caído',category:'Interfaz en shutdown',
+    devId:transitSide.dev,port:transitSide.port,
+    symptom:'La red local entre VLANs funciona, pero nadie tiene salida a Internet ni comunicación con la matriz.',
+    hints:['El enlace entre el router y el switch L3 (VLAN de tránsito 99) podría estar caído: búscalo en rojo en el diagrama.',
+           'Ejecuta show ip interface brief en '+n.r1+' y en '+n.sw1+'; reactiva el puerto '+transitSide.port+' de '+n[transitSide.dev.toLowerCase()]+'.'],
+    solution:[{devId:transitSide.dev,cmds:['enable','configure terminal','interface '+transitSide.port,'no shutdown','end']}],
+    apply:d=>{d[transitSide.dev].interfaces[transitSide.port].status='down';}});
+
+  F.push({key:'wrong-access-vlan',design:null,title:'VLAN de acceso incorrecta',category:'VLAN / Trunking 802.1Q',
+    devId:'SW2',port:'Gi0/3',
+    symptom:n.pc3+' tiene enlace (LED verde) y su IP correcta, pero no alcanza su gateway ni sale a Internet.',
+    hints:['El puerto de '+n.pc3+' podría estar asignado a otra VLAN: compáralo con el plan de direccionamiento del ticket.',
+           'En '+n.sw2+' usa show vlan brief: verifica en qué VLAN aparece Gi0/3 y corrígelo con switchport access vlan '+vs+'.'],
+    solution:[{devId:'SW2',cmds:['enable','configure terminal','interface Gi0/3','switchport access vlan '+vs,'end']}],
+    apply:d=>{d.SW2.interfaces['Gi0/3'].accessVlan=vv;}});
+
+  F.push({key:'missing-vlan',design:null,title:'VLAN no creada en switch de acceso',category:'VLAN / Trunking 802.1Q',
+    devId:'SW2',port:null,
+    symptom:n.pc3+' quedó totalmente aislado tras un reinicio del switch de acceso; el cable está bien conectado pero el puerto aparece inactivo.',
+    hints:['Un puerto access asignado a una VLAN que no existe en el switch queda inactivo (protocol down).',
+           'Ejecuta show vlan brief en '+n.sw2+': ¿existe la VLAN '+vs+'? Si falta, créala con vlan '+vs+'.'],
+    solution:[{devId:'SW2',cmds:['enable','configure terminal','vlan '+vs,'name SOPORTE','end']}],
+    apply:d=>{delete d.SW2.vlans[vs];}});
+
+  F.push({key:'trunk-mode',design:null,title:'Puerto troncal reconfigurado como acceso',category:'VLAN / Trunking 802.1Q',
+    devId:'SW2',port:'Gi0/1',
+    symptom:'Tras el cambio de un técnico externo, Ventas y Soporte perdieron conectividad con el core; el enlace entre switches se ve en ámbar.',
+    hints:['El cable naranja entre SW1 y SW2 indica trunking/VLAN mismatch: un extremo dejó de ser troncal.',
+           'show interfaces trunk en '+n.sw2+' aparecerá vacío: reconfigura Gi0/1 como troncal permitiendo las VLAN '+vv+','+vs+'.'],
+    solution:[{devId:'SW2',cmds:['enable','configure terminal','interface Gi0/1','switchport mode trunk','switchport trunk allowed vlan '+vv+','+vs,'end']}],
+    apply:d=>{const i=d.SW2.interfaces['Gi0/1'];i.mode='access';i.accessVlan=vs;i.allowed=[];}});
+
+  F.push({key:'trunk-allowed',design:null,title:'Lista de VLAN permitidas incompleta',category:'VLAN / Trunking 802.1Q',
+    devId:'SW2',port:'Gi0/1',
+    symptom:'El área de Ventas trabaja sin problemas, pero Soporte no alcanza su gateway ni Internet.',
+    hints:['Solo una VLAN deja de atravesar el troncal: suena a lista de VLANs permitidas incompleta.',
+           'En '+n.sw2+' ejecuta show interfaces trunk y compara las VLAN permitidas con el plan; agrega la VLAN '+vs+' al troncal.'],
+    solution:[{devId:'SW2',cmds:['enable','configure terminal','interface Gi0/1','switchport trunk allowed vlan '+vv+','+vs,'end']}],
+    apply:d=>{d.SW2.interfaces['Gi0/1'].allowed=[vv];}});
+
+  F.push({key:'stp-block',design:null,title:'Puerto bloqueado por STP',category:'Spanning-Tree',
+    devId:stpSide.dev,port:stpSide.port,
+    symptom:'El enlace entre switches quedó bloqueado por Spanning-Tree tras detectar un loop accidental (LED ámbar); Ventas y Soporte sin red.',
+    hints:['Un cable naranja punteado = puerto en BLOCKING por STP. Identifica qué extremo está bloqueado.',
+           'show spanning-tree brief en ambos switches mostrará el puerto en BLOCKING; en ese puerto usa spanning-tree portfast trunk para restaurar el reenvío.'],
+    solution:[{devId:stpSide.dev,cmds:['enable','configure terminal','interface '+stpSide.port,'spanning-tree portfast trunk','end']}],
+    apply:d=>{d[stpSide.dev].stp[stpSide.port]='blocking';}});
+
+  F.push({key:'wrong-svi',design:null,title:'SVI con subred incorrecta',category:'Configuración IP / Subredes',
+    devId:'SW1',port:'Vlan'+vv,
+    symptom:n.pc2+' no alcanza su gateway '+nets.ventas.gw+'; las demás VLAN funcionan con normalidad.',
+    hints:['El gateway de cada VLAN vive en el switch L3 como interfaz virtual (SVI): verifica su IP.',
+           'En '+n.sw1+' ejecuta show ip interface brief: la SVI Vlan'+vv+' debe valer '+nets.ventas.gw+' '+M24+'.'],
+    solution:[{devId:'SW1',cmds:['enable','configure terminal','interface Vlan'+vv,'ip address '+nets.ventas.gw+' '+M24,'end']}],
+    apply:d=>{d.SW1.interfaces['Vlan'+vv].ip='10.'+B+'.21.1';}});
+
+  F.push({key:'wrong-pc-ip',design:null,title:'TCP/IP manual incorrecto en PC',category:'Configuración IP / Subredes',
+    devId:'PC2',port:null,
+    symptom:'Tras mantenimiento, '+n.pc2+' quedó con configuración TCP/IP manual incorrecta (IP/máscara fuera de su subred) y no alcanza su gateway.',
+    hints:['No todo es infraestructura: revisa también la configuración del propio equipo afectado.',
+           'Abre la consola de '+n.pc2+' y usa ipconfig: debe ser '+s.pcs.ventas+' '+M24+' con gateway '+nets.ventas.gw+' (la máscara /25 no corresponde).'],
+    solution:[{devId:'PC2',cmds:['ip '+s.pcs.ventas+' '+M24+' '+nets.ventas.gw]}],
+    apply:d=>{d.PC2.pc={ip:'10.'+B+'.20.200',mask:'255.255.255.128',gw:nets.ventas.gw};}});
+
+  F.push({key:'missing-static-route',design:'static',title:'Ruta estática faltante en el router',category:'Enrutamiento (ruta estática)',
+    devId:'R1',port:null,
+    symptom:n.pc3+' se comunica en su VLAN y alcanza su gateway, pero no tiene salida a Internet; Admin y Ventas sí navegan.',
+    hints:['El tráfico de Soporte llega al router, pero este no sabe cómo regresar a esa subred (NAT falla sin ruta de vuelta).',
+           'show ip route en '+n.r1+': falta la ruta hacia '+nets.soporte.net+'/24 vía el switch L3 ('+nets.transit.sw1+').'],
+    solution:[{devId:'R1',cmds:['enable','configure terminal','ip route '+nets.soporte.net+' '+M24+' '+nets.transit.sw1,'end']}],
+    apply:d=>{d.R1.staticRoutes=d.R1.staticRoutes.filter(r=>r.net!==nets.soporte.net);}});
+
+  F.push({key:'missing-default-sw1',design:'static',title:'Ruta por defecto faltante en switch L3',category:'Enrutamiento (ruta estática)',
+    devId:'SW1',port:null,
+    symptom:'NINGÚN equipo de la sucursal tiene salida a Internet; la red local (inter-VLAN) funciona perfecto.',
+    hints:['Si todo falla hacia Internet pero la red local funciona, el problema está en la ruta por defecto del switch L3.',
+           'show ip route en '+n.sw1+': debe existir S* 0.0.0.0/0 vía '+nets.transit.r1+'.'],
+    solution:[{devId:'SW1',cmds:['enable','configure terminal','ip route 0.0.0.0 '+M0+' '+nets.transit.r1,'end']}],
+    apply:d=>{d.SW1.staticRoutes=d.SW1.staticRoutes.filter(r=>r.net!=='0.0.0.0');}});
+
+  F.push({key:'ospf-down',design:'ospf',title:'Proceso OSPF caído',category:'Enrutamiento (OSPF)',
+    devId:ospfSide,port:null,
+    symptom:'R1 y el switch L3 dejaron de intercambiar rutas dinámicas: sin salida a Internet en toda la sucursal. El diseño de red usa OSPF área 0.',
+    hints:['El ticket indica que el enrutamiento dinámico es OSPF: verifica el proceso en '+n.r1+' y en '+n.sw1+'.',
+           'show ip protocols y show ip route: quien no muestre rutas marcadas con "O" tiene el proceso caído. Restablécelo con router ospf 1 y sus statements network.'],
+    solution:ospfSide==='SW1'
+      ?[{devId:'SW1',cmds:['enable','configure terminal','router ospf 1',
+          'network '+nets.transit.net+' 0.0.0.255 area 0',
+          'network '+nets.admin.net+' 0.0.0.255 area 0',
+          'network '+nets.ventas.net+' 0.0.0.255 area 0',
+          'network '+nets.soporte.net+' 0.0.0.255 area 0'].concat(
+            s.topo.sw3?['network '+nets.contab.net+' 0.0.0.255 area 0']:[]).concat(['end'])}]
+      :[{devId:'R1',cmds:['enable','configure terminal','router ospf 1',
+          'network '+nets.transit.net+' 0.0.0.255 area 0','end']}],
+    apply:d=>{d[ospfSide].ospf={enabled:false,process:1,networks:[]};}});
+
+  if(s.topo.sw3){
+    const side3=rnd()<0.5?{dev:'SW1',port:'Gi0/4'}:{dev:'SW3',port:'Gi0/1'};
+    F.push({key:'shut-sw3trunk',design:null,title:'Troncal de Contabilidad caído',category:'Interfaz en shutdown',
+      devId:side3.dev,port:side3.port,
+      symptom:'Toda el área de Contabilidad (planta nueva, '+n.pc4+') perdió su red de golpe; el resto de la sucursal trabaja normal.',
+      hints:['El enlace hacia el switch nuevo de Contabilidad está en rojo en el diagrama: revisa ambos extremos del troncal.',
+             'Ejecuta show ip interface brief en '+n.sw3+' (o en '+n.sw1+'): el puerto '+side3.port+' está caído; reactívalo con no shutdown.'],
+      solution:[{devId:side3.dev,cmds:['enable','configure terminal','interface '+side3.port,'no shutdown','end']}],
+      apply:d=>{d[side3.dev].interfaces[side3.port].status='down';}});
+  }
+
+  return F;
+}
+
+function chooseFaults(s){
+  const rnd=mulberry32((s.seed>>>0)^0x5bf03635);
+  let pool=makeFaults(s,rnd).filter(f=>!f.design||f.design===s.wanDesign);
+  for(let i=pool.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+  const r=rnd();
+  const k=r<0.55?1:(r<0.85?2:3);
+  const used=new Set(); const out=[];
+  for(const f of pool){
+    const key=f.devId+'|'+(f.port||'global');
+    if(used.has(key))continue;
+    used.add(key); out.push(f);
+    if(out.length===k)break;
+  }
+  return out;
+}
+
+/* ============================== MOTOR DE RED ============================== */
+function D(){return S.lab.devices;}
+function isSwitch(d){return d.type==='l2switch'||d.type==='l3switch';}
+function hasCli(d){return d.type!=='isp';}
+function linkOf(devId,port){return S.lab.links.find(l=>(l.a.dev===devId&&l.a.port===port)||(l.b.dev===devId&&l.b.port===port));}
+function pcLinkOf(devId){return S.lab.links.find(l=>l.a.dev===devId||l.b.dev===devId);}
+function otherSide(l,devId){return l.a.dev===devId?l.b:l.a;}
+
+function physUp(devId,port){
+  const d=D()[devId]; if(!d)return false;
+  const i=d.interfaces[port]; if(!i||i.status!=='up')return false;
+  if(isSwitch(d)&&i.kind==='port'&&i.mode==='access'&&i.accessVlan!=null&&!d.vlans[i.accessVlan])return false;
+  return true;
+}
+function portUp(devId,port){
+  if(!physUp(devId,port))return false;
+  const lk=linkOf(devId,port); if(!lk)return true;
+  const o=otherSide(lk,devId); const od=D()[o.dev];
+  if(od.type==='pc'||!o.port)return true;
+  return physUp(o.dev,o.port);
+}
+function pcUp(pcId){
+  const lk=pcLinkOf(pcId); if(!lk)return false;
+  const sw=lk.a.dev===pcId?lk.b:lk.a;
+  return portUp(sw.dev,sw.port);
+}
+function sviUp(d,name){const i=d.interfaces[name];if(!i||i.kind!=='svi')return false;const v=+name.slice(4);return i.status==='up'&&!!d.vlans[v];}
+function ifaceNode(devId,port){return D()[devId].type==='pc'?devId:devId+'.'+port;}
+
+function carriedVlans(l){
+  const dA=D()[l.a.dev],dB=D()[l.b.dev];
+  if(!isSwitch(dA)||!isSwitch(dB))return [];
+  const ia=dA.interfaces[l.a.port],ib=dB.interfaces[l.b.port];
+  if(!ia||!ib)return [];
+  if(ia.mode==='trunk'&&ib.mode==='trunk')return ia.allowed.filter(v=>ib.allowed.includes(v));
+  if(ia.mode==='access'&&ib.mode==='access')return (ia.accessVlan!=null&&ia.accessVlan===ib.accessVlan)?[ia.accessVlan]:[];
+  return [];
+}
+function linkBlocked(l){
+  const dA=D()[l.a.dev],dB=D()[l.b.dev];
+  return (dA.stp&&dA.stp[l.a.port]==='blocking')||(dB.stp&&dB.stp[l.b.port]==='blocking');
+}
+
+function recompute(){
+  const devs=D(), links=S.lab.links;
+  const ufs={}, nodeVlans=new Map();
+  function uf(n){return ufs[n]||(ufs[n]={p:{},find(x){if(this.p[x]===undefined)this.p[x]=x;let r=x;while(this.p[r]!==r)r=this.p[r];while(this.p[x]!==x){const nx=this.p[x];this.p[x]=r;x=nx;}return r;},union(a,b){const ra=this.find(a),rb=this.find(b);if(ra!==rb)this.p[ra]=rb;}});}
+  function addNode(node,v){uf(v).find(node);let set=nodeVlans.get(node);if(!set){set=new Set();nodeVlans.set(node,set);}set.add(v);}
+  function portVlansLocal(d,port){
+    const i=d.interfaces[port];
+    if(!i||i.kind!=='port'||!physUp(d.id,port))return [];
+    if(i.mode==='access')return i.accessVlan!=null?[i.accessVlan]:[];
+    if(i.mode==='trunk')return (i.allowed||[]).slice();
+    return [];
+  }
+  for(const d of Object.values(devs)){
+    if(!isSwitch(d))continue;
+    const localByVlan={};
+    for(const [p,i] of Object.entries(d.interfaces)){
+      if(i.kind!=='port')continue;
+      for(const v of portVlansLocal(d,p)){
+        addNode(d.id+'.'+p,v);
+        (localByVlan[v]||(localByVlan[v]=[])).push(d.id+'.'+p);
+      }
+    }
+    for(const v of Object.keys(localByVlan)){
+      const arr=localByVlan[v];
+      for(let i=1;i<arr.length;i++)uf(+v).union(arr[0],arr[i]);
+    }
+    for(const [name,i] of Object.entries(d.interfaces)){
+      if(i.kind!=='svi'||!sviUp(d,name))continue;
+      const v=+name.slice(4);
+      addNode(d.id+'.'+name,v);
+      for(const pnode of (localByVlan[v]||[]))uf(v).union(d.id+'.'+name,pnode);
+    }
+  }
+  for(const l of links){
+    if(l.kind!=='eth')continue;
+    const dA=devs[l.a.dev],dB=devs[l.b.dev];
+    const swA=isSwitch(dA),swB=isSwitch(dB);
+    if(swA&&swB){
+      if(!portUp(l.a.dev,l.a.port)||!portUp(l.b.dev,l.b.port))continue;
+      if(linkBlocked(l))continue;
+      for(const v of carriedVlans(l)){
+        addNode(l.a.dev+'.'+l.a.port,v); addNode(l.b.dev+'.'+l.b.port,v);
+        uf(v).union(l.a.dev+'.'+l.a.port,l.b.dev+'.'+l.b.port);
+      }
+    }else{
+      const swSide=swA?l.a:l.b, epSide=swA?l.b:l.a;
+      if(!swSide.port)continue;
+      const swD=devs[swSide.dev], i=swD.interfaces[swSide.port];
+      if(!i||i.mode!=='access'||i.accessVlan==null)continue;
+      if(!portUp(swSide.dev,swSide.port))continue;
+      if(devs[epSide.dev].type!=='pc'&&!epSide.port)continue;
+      if(devs[epSide.dev].type!=='pc'&&!portUp(epSide.dev,epSide.port))continue;
+      const v=i.accessVlan;
+      const epNode=ifaceNode(epSide.dev,epSide.port);
+      addNode(epNode,v); addNode(swSide.dev+'.'+swSide.port,v);
+      uf(v).union(epNode,swSide.dev+'.'+swSide.port);
+    }
+  }
+  S.eng={ufs,nodeVlans};
+}
+
+function sameL2(x,y){
+  if(!S.eng||x==null||y==null)return false;
+  if(x===y)return true;
+  const lx=S.eng.nodeVlans.get(x); if(!lx)return false;
+  const ly=S.eng.nodeVlans.get(y); if(!ly)return false;
+  for(const v of lx){
+    if(ly.has(v)&&S.eng.ufs[v].find(x)===S.eng.ufs[v].find(y))return true;
+  }
+  return false;
+}
+
+function deliverTo(dstIp,fromNode,fromDevId){
+  const devs=D();
+  for(const l of S.lab.links){
+    let me=null,other=null;
+    if(l.a.dev===fromDevId){me=l.a;other=l.b;}
+    else if(l.b.dev===fromDevId){me=l.b;other=l.a;}
+    if(!me||!other||!other.port)continue;
+    const od=devs[other.dev];
+    if(od.type==='pc')continue;
+    const oi=od.interfaces[other.port];
+    if(oi&&oi.ip===dstIp&&portUp(od.id,other.port)&&(!me.port||portUp(fromDevId,me.port))){
+      return {dev:od,iface:other.port,node:od.id+'.'+other.port};
+    }
+  }
+  for(const d of Object.values(devs)){
+    if(d.type==='pc'){
+      if(d.pc&&d.pc.ip===dstIp&&pcUp(d.id)&&sameL2(fromNode,d.id))return {dev:d,iface:'NIC',node:d.id};
+      continue;
+    }
+    for(const [name,i] of Object.entries(d.interfaces)){
+      if(!i.ip||i.ip!==dstIp)continue;
+      if(i.kind==='svi'){
+        if(sviUp(d,name)&&sameL2(fromNode,d.id+'.'+name))return {dev:d,iface:name,node:d.id+'.'+name};
+      }else if(i.kind==='routed'){
+        if(portUp(d.id,name)&&sameL2(fromNode,d.id+'.'+name))return {dev:d,iface:name,node:d.id+'.'+name};
+      }
+    }
+  }
+  return null;
+}
+
+function ospfNeighbors(d){
+  if(!d.ospf||!d.ospf.enabled)return [];
+  const out=[];
+  for(const e of Object.values(D())){
+    if(e.id===d.id||e.type==='pc'||!e.ospf||!e.ospf.enabled)continue;
+    let via=null;
+    for(const [n1,i1] of Object.entries(d.interfaces)){
+      if(!i1.ip||!i1.mask)continue;
+      const up1=i1.kind==='svi'?sviUp(d,n1):portUp(d.id,n1);
+      if(!up1)continue;
+      const node1=d.id+'.'+n1;
+      for(const [n2,i2] of Object.entries(e.interfaces)){
+        if(!i2.ip||!i2.mask)continue;
+        const up2=i2.kind==='svi'?sviUp(e,n2):portUp(e.id,n2);
+        if(!up2)continue;
+        if(netOf(i1.ip,i1.mask)!==netOf(i2.ip,i2.mask)||i1.mask!==i2.mask)continue;
+        const node2=e.id+'.'+n2;
+        const direct=linkOf(d.id,n1)&&otherSide(linkOf(d.id,n1),d.id).dev===e.id&&otherSide(linkOf(d.id,n1),d.id).port===n2;
+        if(direct||sameL2(node1,node2)){via=i2.ip;break;}
+      }
+      if(via)break;
+    }
+    if(via)out.push({dev:e,via:via});
+  }
+  return out;
+}
+
+function wildMatch(ip,net,wild){return (ipToInt(ip)&~ipToInt(wild)>>>0)===(ipToInt(net)&~ipToInt(wild)>>>0);}
+
+function routesOf(d){
+  const rt=[];
+  if(d.type==='pc'){
+    if(!pcUp(d.id))return rt;
+    const p=d.pc;
+    rt.push({type:'connected',net:netOf(p.ip,p.mask),mask:p.mask,via:null,node:d.id,iface:'NIC',dev:d});
+    if(inSubnet(p.gw,netOf(p.ip,p.mask),p.mask))rt.push({type:'static',net:'0.0.0.0',mask:'0.0.0.0',via:p.gw,node:d.id,iface:'NIC',dev:d,default:true});
+    return rt;
+  }
+  for(const [name,i] of Object.entries(d.interfaces)){
+    if(!i.ip||!i.mask)continue;
+    let up=false;
+    if(i.kind==='svi')up=sviUp(d,name);
+    else if(i.kind==='routed')up=portUp(d.id,name);
+    if(!up)continue;
+    rt.push({type:'connected',net:netOf(i.ip,i.mask),mask:i.mask,via:null,node:d.id+'.'+name,iface:name,dev:d});
+  }
+  for(const sr of d.staticRoutes||[])rt.push({type:'static',net:sr.net,mask:sr.mask,via:sr.via,node:null,iface:null,dev:d,default:sr.net==='0.0.0.0'});
+  if(d.ospf&&d.ospf.enabled){
+    for(const nb of ospfNeighbors(d)){
+      const e=nb.dev;
+      for(const [name,i] of Object.entries(e.interfaces)){
+        if(!i.ip||!i.mask)continue;
+        let up=false;
+        if(i.kind==='svi')up=sviUp(e,name);
+        else if(i.kind==='routed')up=portUp(e.id,name);
+        if(!up)continue;
+        const net=netOf(i.ip,i.mask);
+        if(!e.ospf.networks.some(nw=>wildMatch(i.ip,nw.net,nw.wild)&&nw.net===net))continue;
+        if(rt.some(r=>r.net===net&&r.mask===i.mask))continue;
+        rt.push({type:'ospf',net:net,mask:i.mask,via:nb.via,node:null,iface:null,dev:d});
+      }
+    }
+  }
+  return rt;
+}
+
+function lpm(rt,dst){
+  let best=null,bestLen=-1;
+  for(const r of rt){
+    if(!inSubnet(dst,r.net,r.mask))continue;
+    const len=maskLen(r.mask);
+    if(len>bestLen){bestLen=len;best=r;}
+  }
+  if(best&&best.via){
+    const c=rt.find(r=>r.type==='connected'&&inSubnet(best.via,r.net,r.mask));
+    best=Object.assign({},best,{node:c?c.node:null,iface:c?c.iface:null,viaIface:c?c.iface:null});
+  }
+  return best;
+}
+
+function routeFrom(d,dst,trail){
+  if(d.type==='isp'){
+    if(/^10\./.test(dst))return {ok:false,reason:'El paquete murió en el ISP: las subredes privadas 10.x nunca deberían salir por aquí — a R1 le falta la ruta de regreso (revisa show ip route en R1)',where:'ISP'};
+    return {ok:true,path:trail};
+  }
+  const rt=routesOf(d);
+  const r=lpm(rt,dst);
+  if(!r)return {ok:false,reason:d.name+': no hay ruta hacia '+dst+' — revisa `show ip route`',where:d.name};
+  if(r.type==='connected'){
+    const t=deliverTo(dst,r.node,d.id);
+    if(t)return {ok:true,path:trail.concat([d.name+' → '+dst]),reached:t};
+    return {ok:false,reason:d.name+': '+dst+' no responde en la subred '+r.net+'/'+maskLen(r.mask)+' (host caído, VLAN incorrecta, trunk roto o IP fuera de subred)',where:d.name};
+  }
+  const g=deliverTo(r.via,r.node,d.id);
+  if(!g)return {ok:false,reason:d.name+': el siguiente salto '+r.via+' no es alcanzable desde '+(r.iface||'su interfaz de salida')+' (enlace caído o problema VLAN/trunk)',where:d.name};
+  if(trail.some(t=>t.dev===g.dev.id))return {ok:false,reason:'Loop de enrutamiento entre '+d.name+' y '+g.dev.name,where:d.name};
+  return routeFrom(g.dev,dst,trail.concat([{dev:d.id,name:d.name,via:r.via}]));
+}
+
+function primaryIp(d){
+  for(const [name,i] of Object.entries(d.interfaces)){
+    if(!i.ip)continue;
+    if(i.kind==='svi'?sviUp(d,name):portUp(d.id,name))return i.ip;
+  }
+  return null;
+}
+
+function pingSim(srcId,dstIp){
+  const d=D()[srcId];
+  if(!d)return {ok:false,reason:'Dispositivo desconocido'};
+  if(!validIp(dstIp))return {ok:false,reason:'Dirección IP inválida'};
+  if(d.type==='pc'){
+    if(!pcUp(d.id))return {ok:false,reason:d.name+': sin enlace físico a la red (puerto del switch caído o VLAN inexistente)'};
+    const p=d.pc;
+    if(!inSubnet(p.gw,netOf(p.ip,p.mask),p.mask)&&!inSubnet(dstIp,netOf(p.ip,p.mask),p.mask))
+      return {ok:false,reason:d.name+': su gateway '+p.gw+' está fuera de su subred '+netOf(p.ip,p.mask)+'/'+maskLen(p.mask)+' — configura TCP/IP correcta'};
+  }
+  const fwd=routeFrom(d,dstIp,[]);
+  if(!fwd.ok)return fwd;
+  const srcIp=d.type==='pc'?d.pc.ip:primaryIp(d);
+  if(dstIp===INTERNET){
+    if(srcId!=='R1'&&srcId!=='FW1'&&srcId!=='ISP'&&srcIp){
+      const nat=routeFrom(D()['R1'],srcIp,[]);
+      if(!nat.ok)return {ok:false,reason:'El tráfico sale a Internet, pero NAT falla al regresar: '+nat.reason};
+    }
+    return {ok:true,path:fwd.path};
+  }
+  const t=fwd.reached;
+  if(!t)return {ok:true,path:fwd.path};
+  if(t.dev.id===d.id)return {ok:true,path:fwd.path};
+  if(!srcIp)return {ok:true,path:fwd.path};
+  const back=routeFrom(t.dev,srcIp,[]);
+  if(!back.ok)return {ok:false,reason:'Ida OK, pero sin ruta de regreso: '+back.reason,where:back.where};
+  return {ok:true,path:fwd.path};
+}
+
+function evaluateGoals(){
+  return S.lab.goals.map(g=>Object.assign({},g,{res:pingSim(g.src,g.dst)}));
+}
+
+function linkState(l){
+  const devs=D();
+  const sideUp=sd=>devs[sd.dev].type==='pc'?pcUp(sd.dev):portUp(sd.dev,sd.port);
+  if(!sideUp(l.a)||!sideUp(l.b))return 'down';
+  if(l.kind==='wan')return 'ok';
+  const dA=devs[l.a.dev],dB=devs[l.b.dev];
+  if(isSwitch(dA)&&isSwitch(dB)){
+    if(linkBlocked(l))return 'stp';
+    return carriedVlans(l).length?'ok':'mis';
+  }
+  const swSide=isSwitch(dA)?l.a:l.b;
+  const swD=devs[swSide.dev];
+  const i=swD.interfaces[swSide.port];
+  return (i&&i.mode==='access')?'ok':'mis';
+}
+
+/* ============================== CLI CISCO IOS ============================== */
+function cliS(devId){return S.cli[devId]||(S.cli[devId]={mode:'user',ifc:null,vid:null,out:[],hist:[],hi:-1});}
+function promptOf(d){
+  const c=cliS(d.id);
+  switch(c.mode){
+    case 'user':return d.name+'>';
+    case 'priv':return d.name+'#';
+    case 'config':return d.name+'(config)#';
+    case 'if':return d.name+'(config-if)#';
+    case 'vlan':return d.name+'(config-vlan)#';
+    case 'router':return d.name+'(config-router)#';
+    default:return d.name+'>';
+  }
+}
+
+function resolveIfc(d,arg){
+  const norm=String(arg).toLowerCase().replace(/[\s\/\-]/g,'');
+  for(const name of Object.keys(d.interfaces)){
+    if(name.toLowerCase().replace(/[\s\/\-]/g,'')===norm)return {ok:name};
+  }
+  const m=norm.match(/^vlan(\d+)$/);
+  if(m&&isSwitch(d)){
+    const v=+m[1];
+    if(!d.vlans[v])return {err:'% VLAN '+v+' no existe. Créala primero con: vlan '+v};
+    const name='Vlan'+v;
+    if(!d.interfaces[name])d.interfaces[name]={kind:'svi',ip:null,mask:null,status:'up'};
+    return {ok:name};
+  }
+  return {err:"% Interfaz desconocida. Usa show ip interface brief para ver las disponibles."};
+}
+
+function parseVlanList(str,allVlans){
+  if(str.toLowerCase()==='all')return allVlans.slice();
+  const out=[];
+  for(const tok of str.split(',')){
+    const rg=tok.split('-');
+    if(rg.length===2){for(let v=+rg[0];v<=+rg[1];v++)out.push(v);}
+    else if(/^\d+$/.test(tok.trim()))out.push(+tok);
+    else return null;
+  }
+  return out;
+}
+
+function labVlans(){
+  const set=new Set([99]);
+  for(const d of Object.values(D()))if(d.vlans)for(const v of Object.keys(d.vlans))set.add(+v);
+  return Array.from(set).sort((a,b)=>a-b);
+}
+
+function showIpIntBrief(d,o){
+  o(pad('Interface',22)+pad('IP-Address',17)+pad('OK?',4)+pad('Method',8)+pad('Status',22)+'Protocol');
+  for(const [name,i] of Object.entries(d.interfaces)){
+    let proto='down';
+    if(i.kind==='svi')proto=sviUp(d,name)?'up':'down';
+    else if(i.kind==='routed')proto=portUp(d.id,name)?'up':'down';
+    else proto=physUp(d.id,name)?'up':'down';
+    const st=i.status==='up'?'up':'administratively down';
+    o(pad(name,22)+pad(i.ip||'unassigned',17)+pad('YES',4)+pad('manual',8)+pad(st,22)+proto);
+  }
+}
+
+function showIpRoute(d,o){
+  const rt=routesOf(d);
+  const seen=new Set();
+  let gw=null;
+  o('Codes: C - connected, S - static, O - OSPF, * - candidate default');
+  o('');
+  for(const r of rt){
+    const key=r.net+'/'+r.mask+r.type;
+    if(seen.has(key))continue;
+    seen.add(key);
+    const pre=r.net+'/'+maskLen(r.mask);
+    if(r.type==='connected'){
+      o('C    '+pad(pre,18)+'is directly connected, '+r.iface);
+    }else if(r.type==='static'){
+      if(r.default)gw=r.via;
+      o((r.default?'S*   ':'S    ')+pad(pre,18)+'[1/0] via '+r.via);
+    }else if(r.type==='ospf'){
+      o('O    '+pad(pre,18)+'[110/2] via '+r.via+', '+(r.viaIface||'SVI'));
+    }
+  }
+  if(gw)o('');
+  if(gw)o('Gateway of last resort is '+gw+' to network 0.0.0.0');
+}
+
+function showVlanBrief(d,o){
+  if(!isSwitch(d)){o('% Comando disponible solo en switches.');return;}
+  o(pad('VLAN',6)+pad('Name',26)+pad('Status',10)+'Ports');
+  o(pad('----',6)+pad('--------------------------------',26)+pad('---------',10)+'--------------------');
+  for(const [vid,name] of Object.entries(d.vlans)){
+    const ports=[];
+    for(const [p,i] of Object.entries(d.interfaces)){
+      if(i.kind==='port'&&i.mode==='access'&&i.accessVlan===+vid)ports.push(p);
+    }
+    o(pad(vid,6)+pad(name,26)+pad('active',10)+ports.join(','));
+  }
+  const trunks=Object.entries(d.interfaces).filter(([p,i])=>i.kind==='port'&&i.mode==='trunk').map(([p])=>p);
+  if(trunks.length)o('');
+  if(trunks.length)o('Puertos troncales (no aparecen arriba): '+trunks.join(', '));
+}
+
+function showTrunk(d,o){
+  if(!isSwitch(d)){o('% Comando disponible solo en switches.');return;}
+  const trunks=Object.entries(d.interfaces).filter(([p,i])=>i.kind==='port'&&i.mode==='trunk');
+  if(!trunks.length){o('% No hay puertos en modo troncal en este switch.');o('Sugerencia: show interfaces <puerto> para ver el modo actual.');return;}
+  o(pad('Port',10)+pad('Mode',10)+pad('Encapsulation',16)+pad('Status',12)+'Vlans permitidas');
+  for(const [p,i] of trunks){
+    o(pad(p,10)+pad(i.mode,10)+pad('802.1q',16)+pad(physUp(d.id,p)?'trunking':'down',12)+i.allowed.join(','));
+  }
+}
+
+function showStp(d,o){
+  if(!isSwitch(d)){o('% Comando disponible solo en switches.');return;}
+  o(pad('VLAN',8)+pad('Port',10)+pad('Role',8)+pad('Sts',10)+pad('Cost',7)+'Portfast');
+  for(const [p,i] of Object.entries(d.interfaces)){
+    if(i.kind!=='port')continue;
+    const vlans=i.mode==='access'?[i.accessVlan]:(i.allowed||[]);
+    const st=(d.stp&&d.stp[p])||'forwarding';
+    for(const v of vlans){
+      if(v==null)continue;
+      o(pad('VLAN'+String(v).padStart(4,'0'),8)+pad(p,10)+pad('Desg',8)+pad(st==='forwarding'?'FWD':'BLK',10)+pad('4',7)+((d.portfast&&d.portfast[p])?'True':'False'));
+    }
+  }
+}
+
+function showArp(d,o){
+  o(pad('Protocol',10)+pad('Address',17)+pad('Age',6)+pad('Hardware Addr',16)+pad('Type',7)+'Interface');
+  const rows=[];
+  for(const [name,i] of Object.entries(d.interfaces)){
+    if(!i.ip)continue;
+    let node=null,up=false;
+    if(i.kind==='svi'){up=sviUp(d,name);node=d.id+'.'+name;}
+    else if(i.kind==='routed'){up=portUp(d.id,name);node=d.id+'.'+name;}
+    if(!up)continue;
+    for(const e of Object.values(D())){
+      if(e.id===d.id)continue;
+      if(e.type==='pc'){
+        if(e.pc&&pcUp(e.id)&&sameL2(node,e.id))rows.push([e.pc.ip,macOf(e.id),name]);
+      }else{
+        for(const [n2,i2] of Object.entries(e.interfaces)){
+          if(!i2.ip)continue;
+          let node2=null,up2=false;
+          if(i2.kind==='svi'){up2=sviUp(e,n2);node2=e.id+'.'+n2;}
+          else if(i2.kind==='routed'){up2=portUp(e.id,n2);node2=e.id+'.'+n2;}
+          if(up2&&sameL2(node,node2))rows.push([i2.ip,macOf(e.id+n2),name]);
+        }
+      }
+    }
+    for(const l of S.lab.links){
+      let me=null,ot=null;
+      if(l.a.dev===d.id&&l.a.port===name){me=l.a;ot=l.b;}
+      else if(l.b.dev===d.id&&l.b.port===name){me=l.b;ot=l.a;}
+      if(!me||!ot||!ot.port)continue;
+      const od=D()[ot.dev];
+      if(od.type==='pc')continue;
+      const oi=od.interfaces[ot.port];
+      if(oi&&oi.ip&&portUp(od.id,ot.port)&&!rows.some(r=>r[0]===oi.ip))rows.push([oi.ip,macOf(od.id+ot.port),name]);
+    }
+  }
+  const uniq=[];
+  for(const r of rows){if(!uniq.some(u=>u[0]===r[0]))uniq.push(r);}
+  for(const r of uniq)o(pad('Internet',10)+pad(r[0],17)+pad('4',6)+pad(r[1],16)+pad('ARPA',7)+r[2]);
+  if(!uniq.length)o('(tabla vacía: no hay vecinos L2 alcanzables)');
+}
+
+function showRun(d,o){
+  o('!');
+  o('hostname '+d.name);
+  o('!');
+  if(d.type==='pc'){
+    o('!-- Configuración TCP/IP del equipo (consola de PC)');
+    o('ip address '+d.pc.ip+' '+d.pc.mask);
+    o('default-gateway '+d.pc.gw);
+    o('!');
+    o('end');
+    return;
+  }
+  if(isSwitch(d)&&d.vlans){
+    for(const [vid,name] of Object.entries(d.vlans)){
+      o('vlan '+vid);
+      o(' name '+name);
+      o('!');
+    }
+  }
+  for(const [name,i] of Object.entries(d.interfaces)){
+    o('interface '+name);
+    if(i.desc)o(' description '+i.desc);
+    if(i.kind==='port'){
+      if(i.mode==='trunk'){
+        o(' switchport mode trunk');
+        o(' switchport trunk allowed vlan '+i.allowed.join(','));
+      }else{
+        o(' switchport mode access');
+        o(' switchport access vlan '+i.accessVlan);
+      }
+      if(d.stp&&d.stp[name]==='blocking')o(' ! Puerto bloqueado por STP (BLOCKING)');
+      if(d.portfast&&d.portfast[name])o(' spanning-tree portfast');
+    }
+    if(i.ip)o(' ip address '+i.ip+' '+i.mask);
+    if(i.status==='down')o(' shutdown');
+    else if(i.kind!=='port')o(' no shutdown');
+    o('!');
+  }
+  if(d.ospf&&d.ospf.enabled){
+    o('router ospf '+d.ospf.process);
+    for(const nw of d.ospf.networks)o(' network '+nw.net+' '+nw.wild+' area '+nw.area);
+    o('!');
+  }
+  for(const r of d.staticRoutes||[])o('ip route '+r.net+' '+r.mask+' '+r.via);
+  o('!');
+  o('end');
+}
+
+function showIpProtocols(d,o){
+  if(d.type==='pc'){o('% No aplica en PCs.');return;}
+  if(!d.ospf||!d.ospf.enabled){
+    o('% No hay procesos de enrutamiento dinámico configurados.');
+    if((d.staticRoutes||[]).length)o('Existen rutas estáticas (show ip route).');
+    return;
+  }
+  o('Routing Protocol is "ospf '+d.ospf.process+'"');
+  o('  Outgoing update filter list for all interfaces is not set');
+  o('  Router ID: '+(primaryIp(d)||'0.0.0.0'));
+  o('  Number of areas in this router is 1');
+  o('  Routing for Networks:');
+  for(const nw of d.ospf.networks)o('    '+nw.net+' '+nw.wild+' area '+nw.area);
+  const nbs=ospfNeighbors(d);
+  o('  Routing Information Sources:');
+  o('    Gateway         Distance      Last Update');
+  if(!nbs.length)o('    (sin vecinos OSPF — revisa enlaces y configuración del vecino)');
+  for(const nb of nbs)o('    '+pad(nb.via,16)+'110');
+}
+
+function showInterfaces(d,o,arg){
+  if(!arg){
+    for(const [name,i] of Object.entries(d.interfaces)){
+      o(name+' is '+(i.status==='up'?'up':'administratively down')+', line protocol is '+(
+        i.kind==='svi'?(sviUp(d,name)?'up':'down'):
+        i.kind==='routed'?(portUp(d.id,name)?'up':'down'):
+        (physUp(d.id,name)?'up':'down')));
+      if(i.desc)o('  Description: '+i.desc);
+      if(i.kind==='port'){
+        o('  Cap: '+i.mode+', Access VLAN: '+(i.accessVlan!=null?i.accessVlan:'-')+', Trunk VLANs: '+(i.allowed.length?i.allowed.join(','):'-'));
+        if(d.stp&&d.stp[name])o('  STP state: '+d.stp[name].toUpperCase()+(d.portfast&&d.portfast[name]?' (portfast)':''));
+      }
+      if(i.ip)o('  Internet address is '+i.ip+'/'+maskLen(i.mask));
+      o('  Hardware addr: '+macOf(d.id+name));
+      o('');
+    }
+    return;
+  }
+  const r=resolveIfc(d,arg);
+  if(r.err){o(r.err,'err');return;}
+  const i=d.interfaces[r.ok];
+  let proto=i.kind==='svi'?(sviUp(d,r.ok)?'up':'down'):i.kind==='routed'?(portUp(d.id,r.ok)?'up':'down'):(physUp(d.id,r.ok)?'up':'down');
+  o(r.ok+' is '+(i.status==='up'?'up':'administratively down')+', line protocol is '+proto);
+  if(i.desc)o('  Description: '+i.desc);
+  if(i.kind==='port'){
+    o('  Cap: '+i.mode+', Access VLAN: '+(i.accessVlan!=null?i.accessVlan:'-')+', Trunk VLANs: '+(i.allowed.length?i.allowed.join(','):'-'));
+    if(d.stp&&d.stp[r.ok])o('  STP state: '+d.stp[r.ok].toUpperCase()+(d.portfast&&d.portfast[r.ok]?' (portfast)':''));
+  }
+  if(i.ip)o('  Internet address is '+i.ip+'/'+maskLen(i.mask));
+  o('  Hardware addr: '+macOf(d.id+r.ok));
+}
+
+function cliPing(d,o,target){
+  const res=pingSim(d.id,target);
+  o('Sending 5, 100-byte ICMP Echos to '+target+', timeout is 2 seconds:');
+  if(res.ok){
+    o('!!!!!','ok');
+    o('Success rate is 100 percent (5/5), round-trip min/avg/max = 1/2/4 ms','ok');
+  }else{
+    o('.....','err');
+    o('Success rate is 0 percent (0/5)','err');
+    o('[DIAG] '+res.reason,'dim');
+  }
+}
+
+function showCmd(d,o,toks){
+  const sub=(toks[1]||'').toLowerCase();
+  const rest=toks.slice(1).join(' ');
+  if(sub==='ip'&&toks[2]==='interface')return showIpIntBrief(d,o);
+  if(sub==='ip'&&toks[2]==='route')return showIpRoute(d,o);
+  if(sub==='ip'&&toks[2]==='protocols')return showIpProtocols(d,o);
+  if(sub==='ip'&&toks[2]==='arp')return showArp(d,o);
+  if(sub==='vlan')return showVlanBrief(d,o);
+  if(sub==='interfaces'&&toks[2]==='trunk')return showTrunk(d,o);
+  if(sub==='interfaces')return showInterfaces(d,o,toks.slice(2).join(' '));
+  if(sub==='spanning-tree')return showStp(d,o);
+  if(sub==='running-config'||sub==='run')return showRun(d,o);
+  if(sub==='version'){
+    o('Cisco IOS Software, Simulator Image (CCNA-LAB), Version 15.2(4)M11');
+    o('TAC Support: https://www.cisco.com — simulación educativa');
+    o('Hostname: '+d.name);
+    o('Uptime: 3 days, 4 hours, 21 minutes');
+    return;
+  }
+  o("% Invalid input detected at '^' marker.",'err');
+}
+
+function helpFor(d,c,o){
+  const common=['show ip interface brief','show ip route','show interfaces [X]','show running-config','show version','ping <ip>','exit'];
+  if(d.type==='pc'){
+    o('Comandos disponibles (consola de PC):');
+    o('  ipconfig                 Ver IP, máscara y gateway');
+    o('  ip <ip> <máscara> <gw>   Configurar TCP/IP manualmente');
+    o('  ping <ip>                Probar conectividad');
+    o('  cls                      Limpiar pantalla');
+    o('  help                     Esta ayuda');
+    return;
+  }
+  o('Comandos disponibles en modo '+c.mode+':');
+  if(c.mode==='user')o('  enable | ping <ip> | show ... | exit');
+  if(c.mode==='priv')o('  configure terminal | disable | ping <ip> | show ... | exit');
+  if(c.mode==='config')o('  interface <nombre> | vlan <id> | ip route <red> <máscara> <via> | router ospf 1 | hostname <X> | no ip route ... | end | exit');
+  if(c.mode==='if')o('  ip address <ip> <máscara> | no ip address | shutdown | no shutdown | switchport mode access|trunk | switchport access vlan <id> | switchport trunk allowed vlan <lista|all|add X> | spanning-tree portfast [trunk] | description <txt> | end | exit');
+  if(c.mode==='vlan')o('  name <nombre> | exit | end');
+  if(c.mode==='router')o('  network <red> <wildcard> area 0 | no network <red> | exit | end');
+  o('  '+common.join(' | '));
+}
+
+function afterCommand(){
+  recompute();
+  refreshAll();
+}
+
+function portNote(devId,port,o){
+  const l=linkOf(devId,port);
+  if(!l)return;
+  const st=linkState(l);
+  const other=otherSide(l,devId);
+  const od=D()[other.dev];
+  const oname=od.name+(other.port?' ('+other.port+')':'');
+  if(st==='ok')o('✔ Enlace hacia '+oname+': UP/UP — verde en el diagrama.','ok');
+  else if(st==='down'){
+    const i=D()[devId].interfaces[port];
+    let why;
+    if(i&&i.status!=='up')why='este puerto sigue en shutdown';
+    else if(!physUp(devId,port))why='la VLAN de acceso de este puerto no existe en el switch';
+    else why='el extremo remoto '+oname+' sigue apagado o mal configurado';
+    o('⚠ El enlace hacia '+oname+' sigue ROJO: '+why+'.','err');
+  }
+  else if(st==='stp')o('⚠ El puerto está administrativamente UP pero STP lo mantiene BLOQUEANDO (naranja punteado en el diagrama): resuelve el loop o aplica spanning-tree portfast [trunk].','err');
+  else o('⚠ El enlace hacia '+oname+' sigue NARANJA: desajuste de trunking/VLAN con el vecino (compara switchport mode y show interfaces trunk en ambos extremos).','err');
+}
+
+function runCommand(devId,line){
+  dispatchCommand(devId,line);
+  if(S.lab&&D()[devId]){recompute();refreshAll();}
+}
+
+function dispatchCommand(devId,line){
+  const d=D()[devId];
+  if(!d)return;
+  const c=cliS(devId);
+  line=String(line).replace(/\s+/g,' ').trim();
+  if(!line)return;
+  c.hist.push(line); c.hi=c.hist.length;
+  const o=(t,cls)=>c.out.push({t:String(t),cls:cls||''});
+  o(promptOf(d)+' '+line,'cmd');
+  if(c.out.length>900)c.out.splice(0,c.out.length-900);
+  if(d.type==='isp'){o('El ISP (nube WAN) no es un dispositivo gestionable.','err');renderTerm();return;}
+  if(line==='cls'){c.out=[];renderTerm();return;}
+  if(line==='?'||line.toLowerCase()==='help'){helpFor(d,c,o);renderTerm();return;}
+
+  if(d.type==='pc'){pcCommand(d,c,o,line);afterCommand();renderTerm();return;}
+
+  const toks=line.split(' ');
+  const cmd=toks[0].toLowerCase();
+
+  if(cmd==='ping'){
+    const target=toks[1];
+    if(!target||!validIp(target)){o('% Uso: ping <dirección-ip>','err');renderTerm();return;}
+    cliPing(d,o,target);renderTerm();return;
+  }
+  if(cmd==='show'){showCmd(d,o,toks);renderTerm();return;}
+
+  if(c.mode==='user'){
+    if(cmd==='enable'){c.mode='priv';}
+    else if(cmd==='exit'){o('La sesión de consola permanece abierta (usa el selector de dispositivos).','dim');}
+    else o("% Invalid input detected at '^' marker. (usa enable para modo privilegiado, o ? para ayuda)",'err');
+    renderTerm();return;
+  }
+  if(c.mode==='priv'){
+    if(cmd==='disable'){c.mode='user';}
+    else if(cmd==='configure'||cmd==='conf'){c.mode='config';}
+    else if(cmd==='exit'){c.mode='user';}
+    else if(cmd==='end'){/* ya está en priv */}
+    else o("% Invalid input detected at '^' marker. (desde modo privilegiado: configure terminal)",'err');
+    renderTerm();return;
+  }
+  if(cmd==='end'){c.mode='priv';c.ifc=null;c.vid=null;renderTerm();return;}
+  if(cmd==='exit'){
+    if(c.mode==='if'||c.mode==='vlan'||c.mode==='router')c.mode='config';
+    else if(c.mode==='config')c.mode='priv';
+    c.ifc=null;c.vid=null;
+    renderTerm();return;
+  }
+
+  if(c.mode==='config'){
+    if(cmd==='hostname'){
+      if(!toks[1]){o('% Uso: hostname <nombre>','err');}
+      else{d.name=toks.slice(1).join('-');o('Cambiando nombre del sistema...','dim');afterCommand();renderTabs();buildTopology();}
+      renderTerm();return;
+    }
+    if(cmd==='interface'||cmd==='int'){
+      const r=resolveIfc(d,toks.slice(1).join(' '));
+      if(r.err){o(r.err,'err');renderTerm();return;}
+      c.ifc=r.ok;c.mode='if';renderTerm();return;
+    }
+    if(cmd==='vlan'){
+      if(!isSwitch(d)){o('% Este dispositivo no es un switch.','err');renderTerm();return;}
+      const vid=+toks[1];
+      if(!vid||vid<1||vid>4094){o('% Usage: vlan <1-4094>','err');renderTerm();return;}
+      if(!d.vlans[vid])d.vlans[vid]='VLAN'+String(vid).padStart(4,'0');
+      c.vid=vid;c.mode='vlan';afterCommand();renderTerm();return;
+    }
+    if(cmd==='no'&&toks[1]==='vlan'){
+      const vid=+toks[2];
+      if(d.vlans&&d.vlans[vid]){delete d.vlans[vid];o('VLAN '+vid+' eliminada.','dim');afterCommand();}
+      else o('% VLAN '+vid+' no existe.','err');
+      renderTerm();return;
+    }
+    if(cmd==='ip'&&toks[1]==='route'){
+      const [net,mask,via]=toks.slice(2);
+      if(!net||!mask||!via||!validIp(net)||!validIp(mask)||!validIp(via)){o('% Uso: ip route <red> <máscara> <siguiente-salto>','err');renderTerm();return;}
+      d.staticRoutes=d.staticRoutes||[];
+      d.staticRoutes=d.staticRoutes.filter(r=>!(r.net===net&&r.mask===mask));
+      d.staticRoutes.push({net:net,mask:mask,via:via});
+      afterCommand();renderTerm();return;
+    }
+    if(cmd==='no'&&toks[1]==='ip'&&toks[2]==='route'){
+      const [net,mask]=toks.slice(3);
+      if(!net||!mask){o('% Uso: no ip route <red> <máscara>','err');renderTerm();return;}
+      d.staticRoutes=(d.staticRoutes||[]).filter(r=>!(r.net===net&&r.mask===mask));
+      afterCommand();renderTerm();return;
+    }
+    if(cmd==='router'&&(toks[1]||'').toLowerCase()==='ospf'){
+      if(d.type==='l2switch'){o('% Los switches L2 no enrutan.','err');renderTerm();return;}
+      const proc=+toks[2]||1;
+      d.ospf=d.ospf||{enabled:false,process:proc,networks:[]};
+      d.ospf.enabled=true;d.ospf.process=proc;
+      c.mode='router';afterCommand();renderTerm();return;
+    }
+    if(cmd==='no'&&toks[1]==='router'){
+      if(d.ospf){d.ospf={enabled:false,process:d.ospf.process,networks:[]};afterCommand();o('Proceso de enrutamiento eliminado.','dim');}
+      else o('% No hay proceso que eliminar.','err');
+      renderTerm();return;
+    }
+    o("% Invalid input detected at '^' marker.",'err');renderTerm();return;
+  }
+
+  if(c.mode==='vlan'){
+    if(cmd==='name'){
+      if(!toks[1]){o('% Usage: name <nombre>','err');}
+      else d.vlans[c.vid]=toks.slice(1).join(' ');
+      renderTerm();return;
+    }
+    o("% Invalid input detected at '^' marker.",'err');renderTerm();return;
+  }
+
+  if(c.mode==='router'){
+    if(cmd==='network'){
+      const [net,wild,areaKw,area]=toks.slice(1);
+      if(!net||!validIp(net)){o('% Uso: network <red> <wildcard> area <n>','err');renderTerm();return;}
+      const w=wild||'0.0.0.255';
+      if(!validIp(w)){o('% Wildcard inválido.','err');renderTerm();return;}
+      if(areaKw&&areaKw.toLowerCase()!=='area'){o("% Invalid input detected at '^' marker.",'err');renderTerm();return;}
+      d.ospf.networks=d.ospf.networks.filter(nw=>nw.net!==net);
+      d.ospf.networks.push({net:net,wild:w,area:area?+area:0});
+      afterCommand();renderTerm();return;
+    }
+    if(cmd==='no'&&toks[1]==='network'){
+      d.ospf.networks=d.ospf.networks.filter(nw=>nw.net!==toks[2]);
+      afterCommand();renderTerm();return;
+    }
+    o("% Invalid input detected at '^' marker.",'err');renderTerm();return;
+  }
+
+  if(c.mode==='if'){
+    const i=d.interfaces[c.ifc];
+    if(!i){o('% Interfaz inexistente.','err');c.mode='config';renderTerm();return;}
+    if(cmd==='ip'&&toks[1]==='address'){
+      if(i.kind==='port'){o('% Es un puerto L2 del switch. Asigna la IP a una SVI (interface Vlan'+(s0va())+') o usa switchport.','err');renderTerm();return;}
+      const [ip,mask]=toks.slice(2);
+      if(!ip||!mask||!validIp(ip)||!validIp(parseMask(mask))){o('% Uso: ip address <ip> <máscara|/prefijo>','err');renderTerm();return;}
+      i.ip=ip;i.mask=parseMask(mask);
+      afterCommand();renderTerm();return;
+    }
+    if(cmd==='no'&&toks[1]==='ip'&&toks[2]==='address'){i.ip=null;i.mask=null;afterCommand();renderTerm();return;}
+    if(cmd==='shutdown'||cmd==='shut'){i.status='down';afterCommand();portNote(d.id,c.ifc,o);renderTerm();return;}
+    if(cmd==='no'&&(toks[1]==='shutdown'||toks[1]==='shut')){i.status='up';afterCommand();portNote(d.id,c.ifc,o);renderTerm();return;}
+    if(cmd==='switchport'){
+      if(!isSwitch(d)||i.kind!=='port'){o('% Comando solo válido en puertos L2 de switches.','err');renderTerm();return;}
+      if(toks[1]==='mode'&&(toks[2]==='access'||toks[2]==='trunk')){
+        i.mode=toks[2];
+        if(i.mode==='access'&&i.accessVlan==null)i.accessVlan=1;
+        if(i.mode==='trunk'&&!i.allowed.length)i.allowed=labVlans().filter(v=>v!==1);
+        afterCommand();portNote(d.id,c.ifc,o);renderTerm();return;
+      }
+      if(toks[1]==='access'&&toks[2]==='vlan'){
+        const v=+toks[3];
+        if(!v){o('% Uso: switchport access vlan <id>','err');renderTerm();return;}
+        if(!d.vlans[v]){o('% VLAN '+v+' no existe en este switch (créala con vlan '+v+' o asígnela correctamente).','err');renderTerm();return;}
+        i.mode='access';i.accessVlan=v;
+        afterCommand();portNote(d.id,c.ifc,o);renderTerm();return;
+      }
+      if(toks[1]==='trunk'&&toks[2]==='allowed'&&toks[3]==='vlan'){
+        const arg=toks.slice(4).join('');
+        if(toks[4]==='add'){
+          const add=parseVlanList(toks.slice(5).join(','),labVlans());
+          if(!add){o('% Lista de VLAN inválida.','err');renderTerm();return;}
+          i.mode='trunk';
+          i.allowed=Array.from(new Set(i.allowed.concat(add))).sort((a,b)=>a-b);
+          afterCommand();portNote(d.id,c.ifc,o);renderTerm();return;
+        }
+        const list=parseVlanList(arg,labVlans());
+        if(!list){o('% Lista de VLAN inválida. Ej: switchport trunk allowed vlan 20,30 | all','err');renderTerm();return;}
+        i.mode='trunk';i.allowed=Array.from(new Set(list)).sort((a,b)=>a-b);
+        afterCommand();portNote(d.id,c.ifc,o);renderTerm();return;
+      }
+      o("% Invalid input detected at '^' marker.",'err');renderTerm();return;
+    }
+    if(cmd==='no'&&toks[1]==='switchport'&&toks[2]==='access'){
+      if(i.kind==='port'){i.accessVlan=1;afterCommand();}
+      renderTerm();return;
+    }
+    if(cmd==='spanning-tree'&&(toks[1]||'').toLowerCase()==='portfast'){
+      if(!isSwitch(d)||i.kind!=='port'){o('% portfast aplica en puertos de switches.','err');renderTerm();return;}
+      d.stp=d.stp||{};d.stp[c.ifc]='forwarding';
+      d.portfast=d.portfast||{};d.portfast[c.ifc]=true;
+      o('% Portfast activado: el puerto pasa inmediatamente a FORWARDING.','dim');
+      afterCommand();portNote(d.id,c.ifc,o);renderTerm();return;
+    }
+    if(cmd==='no'&&toks[1]==='spanning-tree'&&toks[2]==='portfast'){
+      d.portfast=d.portfast||{};delete d.portfast[c.ifc];
+      renderTerm();return;
+    }
+    if(cmd==='description'){i.desc=toks.slice(1).join(' ');renderTerm();return;}
+    o("% Invalid input detected at '^' marker.",'err');renderTerm();return;
+  }
+}
+
+function s0va(){const s=S.lab.spec;return s.va+'/'+s.vv+'/'+s.vs+(s.topo.sw3?'/'+s.vc:'');}
+
+function pcCommand(d,c,o,line){
+  const toks=line.split(' ');
+  const cmd=toks[0].toLowerCase();
+  if(cmd==='ipconfig'){
+    o('Configuración IP de '+d.name);
+    o('   Dirección IPv4. . . . . . . . . . : '+d.pc.ip);
+    o('   Máscara de subred . . . . . . . . : '+d.pc.mask+' (/'+maskLen(d.pc.mask)+')');
+    o('   Puerta de enlace predeterminada . : '+d.pc.gw);
+    o('   Subred detectada. . . . . . . . . : '+netOf(d.pc.ip,d.pc.mask)+'/'+maskLen(d.pc.mask));
+    if(!inSubnet(d.pc.gw,netOf(d.pc.ip,d.pc.mask),d.pc.mask))o('   ⚠ ADVERTENCIA: el gateway NO está dentro de la subred del equipo.','err');
+    o('   Enlace físico. . . . . . . . . . . : '+(pcUp(d.id)?'CONECTADO':'DESCONECTADO'),pcUp(d.id)?'ok':'err');
+    return;
+  }
+  if(cmd==='ip'){
+    const [ip,mask,gw]=toks.slice(1);
+    if(!ip||!mask||!gw||!validIp(ip)||!validIp(parseMask(mask))||!validIp(gw)){o('Uso: ip <dirección> <máscara|/prefijo> <gateway>','err');return;}
+    d.pc.ip=ip;d.pc.mask=parseMask(mask);d.pc.gw=gw;
+    o('Configuración TCP/IP aplicada.','ok');
+    if(!inSubnet(gw,netOf(ip,d.pc.mask),d.pc.mask))o('⚠ El gateway '+gw+' queda fuera de la subred '+netOf(ip,d.pc.mask)+'/'+maskLen(d.pc.mask)+'.','err');
+    return;
+  }
+  if(cmd==='ping'){
+    const target=toks[1];
+    if(!target||!validIp(target)){o('Uso: ping <dirección-ip>','err');return;}
+    o('Haciendo ping a '+target+' con 32 bytes de datos:');
+    const res=pingSim(d.id,target);
+    if(res.ok){
+      for(let i=0;i<4;i++)o('Respuesta desde '+target+': bytes=32 tiempo='+(1+i%3)+'ms TTL='+(58+i%4),'ok');
+      o('Estadísticas de ping: Paquetes: enviados = 4, recibidos = 4, perdidos = 0 (0% de pérdida)','ok');
+    }else{
+      for(let i=0;i<4;i++)o('Tiempo de espera agotado para esta solicitud.','err');
+      o('Estadísticas de ping: Paquetes: enviados = 4, recibidos = 0, perdidos = 4 (100% de pérdida)','err');
+      o('[DIAG] '+res.reason,'dim');
+    }
+    return;
+  }
+  if(cmd==='exit'){o('(la consola de la PC permanece abierta)','dim');return;}
+  o("'"+toks[0]+"' no se reconoce como comando. Escribe 'help'.",'err');
+}
+
+/* ============================== LABORATORIO (ciclo de vida) ============================== */
+function scenarioFaults(spec,sc){
+  if(sc&&sc.faultKeys){
+    const rnd=mulberry32((spec.seed>>>0)^0x5bf03635);
+    const pool=makeFaults(spec,rnd);
+    const faults=sc.faultKeys.map(k=>pool.find(f=>f.key===k)).filter(Boolean);
+    if(faults.length===sc.faultKeys.length)return faults;
+  }
+  return chooseFaults(spec);
+}
+
+function startLab(seed){
+  const rnd0=mulberry32((seed>>>0)^0x7eed1);
+  const pref=(S.stats&&S.stats.pref)||'any';
+  const sc=pickScenario(rnd0,pref);
+  const spec=generateSpec(seed>>>0,sc);
+  const faults=scenarioFaults(spec,sc);
+  const devices=buildDevices(spec);
+  for(const f of faults)f.apply(devices);
+  S.lab={spec:spec,scenario:sc,devices:devices,links:buildLinks(spec),faults:faults,goals:buildGoals(spec),
+         hintsUsed:0,sawSolution:false,solved:false,attempted:false};
+  S.cli={};S.active=null;
+  recompute();
+  buildTopology();
+  renderTicket();
+  renderTabs();
+  renderGoals();
+  renderHints();
+  renderSolution();
+  renderStats();
+  refreshAll();
+  openTerminal(null,true);
+  toast('🎫 '+spec.ticket.id+' — '+sc.title+' ('+sc.diff+') · Sucursal '+spec.site);
+}
+
+function resetLab(){
+  if(!S.lab)return;
+  const spec=S.lab.spec;
+  const devices=buildDevices(spec);
+  for(const f of S.lab.faults)f.apply(devices);
+  S.lab.devices=devices;
+  S.lab.solved=false;S.lab.attempted=false;
+  S.cli={};
+  recompute();
+  buildTopology();
+  renderTabs();
+  renderGoals();
+  openTerminal(null,true);
+  refreshAll();
+  toast('↺ Laboratorio reiniciado a su estado inicial (fallas restauradas).');
+}
+
+function newLab(){
+  if(S.lab&&!S.lab.solved){
+    S.stats.streak=0;
+    saveStats();
+  }
+  startLab((Date.now()^(Math.floor(Math.random()*2147483647)))>>>0);
+}
+
+/* ============================== ESTADÍSTICAS / PERSISTENCIA ============================== */
+const SKEY='ccna_sim_stats_v1';
+function loadStats(){
+  try{
+    const raw=localStorage.getItem(SKEY);
+    if(raw){const p=JSON.parse(raw);if(p&&typeof p==='object')return Object.assign({streak:0,best:0,solved:0,attempts:0,bestScore:0,history:[],pref:'any'},p);}
+  }catch(e){}
+  return {streak:0,best:0,solved:0,attempts:0,bestScore:0,history:[],pref:'any'};
+}
+function saveStats(){try{localStorage.setItem(SKEY,JSON.stringify(S.stats));}catch(e){}}
+
+/* ============================== PISTAS Y SOLUCIÓN ============================== */
+function giveHint(){
+  if(!S.lab)return;
+  const all=[];
+  for(const f of S.lab.faults)for(const h of f.hints)all.push({fault:f,text:h});
+  if(S.lab.hintsUsed>=all.length){toast('Ya no hay más pistas para este laboratorio. Intenta validar o revisa la solución.','err');return;}
+  S.lab.hintsUsed++;
+  renderHints();
+  toast('💡 Pista '+S.lab.hintsUsed+' revelada (−15 pts c/u al puntaje final).');
+}
+
+function renderHints(){
+  const card=$('hintsCard'),list=$('hintsList');
+  if(!card||!list)return;
+  list.innerHTML='';
+  if(!S.lab||S.lab.hintsUsed===0){card.classList.add('hidden');return;}
+  card.classList.remove('hidden');
+  const all=[];
+  for(const f of S.lab.faults)for(const h of f.hints)all.push(h);
+  for(let i=0;i<Math.min(S.lab.hintsUsed,all.length);i++){
+    const li=document.createElement('li');
+    li.textContent='💡 '+(i+1)+'. '+all[i];
+    list.appendChild(li);
+  }
+}
+
+function showSolution(){
+  if(!S.lab)return;
+  if(!S.lab.sawSolution){S.lab.sawSolution=true;}
+  renderSolution();
+  toast('📖 Solución revelada (−40 pts al puntaje final de este laboratorio).');
+}
+
+function renderSolution(){
+  const card=$('solutionCard'),body=$('solutionBody'),pen=$('solPenalty');
+  if(!card||!body)return;
+  if(!S.lab||!S.lab.sawSolution){card.classList.add('hidden');return;}
+  card.classList.remove('hidden');
+  if(pen)pen.textContent='−40 pts';
+  body.innerHTML='';
+  const note=document.createElement('div');
+  note.className='ticket-desc';
+  note.style.fontSize='12px';
+  note.textContent='Ejecuta estos comandos en la consola de cada dispositivo (clic en el diagrama o en su pestaña). Los nombres/IPs corresponden a ESTE laboratorio generado:';
+  body.appendChild(note);
+  for(const f of S.lab.faults){
+    const h=document.createElement('div');
+    h.className='soldev';
+    h.textContent='▸ Falla: '+f.title+' ('+f.category+')';
+    h.style.color='#f0abfc';
+    body.appendChild(h);
+    for(const st of f.solution){
+      const dev=D()[st.devId];
+      const div=document.createElement('div');
+      div.className='solstep';
+      const pre=document.createElement('pre');
+      pre.textContent='! En '+(dev?dev.name:st.devId)+(dev&&dev.type==='pc'?' (consola de PC)':'')+':\n'+st.cmds.join('\n');
+      div.appendChild(pre);
+      body.appendChild(div);
+    }
+  }
+}
+
+function copySolution(){
+  if(!S.lab)return;
+  const lines=[];
+  for(const f of S.lab.faults){
+    lines.push('! Falla: '+f.title);
+    for(const st of f.solution){
+      const dev=D()[st.devId];
+      lines.push('! En '+(dev?dev.name:st.devId)+':');
+      lines.push.apply(lines,st.cmds);
+    }
+  }
+  const text=lines.join('\n');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>toast('📋 Comandos copiados al portapapeles.','ok'),()=>toast('No se pudo copiar.','err'));
+  }else toast('Portapapeles no disponible en este navegador.','err');
+}
+
+/* ============================== VALIDACIÓN ============================== */
+function validateLab(){
+  if(!S.lab)return;
+  const results=evaluateGoals();
+  if(!S.lab.attempted){S.lab.attempted=true;S.stats.attempts++;}
+  const passed=results.filter(r=>r.res.ok).length;
+  const total=results.length;
+  const scorePct=Math.round(passed/total*100);
+  const solved=passed===total;
+  let pts=0;
+  if(solved&&!S.lab.solved){
+    S.lab.solved=true;
+    pts=Math.max(20,scorePct-15*S.lab.hintsUsed-(S.lab.sawSolution?40:0));
+    S.stats.solved++;
+    S.stats.streak++;
+    S.stats.best=Math.max(S.stats.best,S.stats.streak);
+    S.stats.bestScore=Math.max(S.stats.bestScore,pts);
+    S.stats.history.unshift({id:S.lab.spec.ticket.id,site:S.lab.spec.site,diff:S.lab.scenario?S.lab.scenario.diff:'',score:pts,date:new Date().toLocaleDateString('es-MX')});
+    if(S.stats.history.length>6)S.stats.history.length=6;
+  }
+  saveStats();
+  renderStats();
+  renderGoals();
+  showValidationModal(results,passed,total,scorePct,solved,pts);
+  if(solved)toast('🎉 ¡Laboratorio resuelto! Racha actual: '+S.stats.streak+' 🔥','ok');
+  else toast('Validación: '+passed+'/'+total+' objetivos cumplidos.','err');
+}
+
+function showValidationModal(results,passed,total,scorePct,solved,pts){
+  const m=$('modal');if(!m)return;
+  $('modalTitle').textContent=solved?'🎉 ¡Laboratorio resuelto!':'Resultado de la validación';
+  const sc=$('modalScore');
+  sc.textContent=scorePct+'%';
+  sc.className='score-big '+(solved?'good':'bad');
+  $('modalSub').innerHTML=passed+' de '+total+' objetivos de conectividad cumplidos'+
+    (solved?' · <b style="color:#86efac">Puntaje: '+pts+' pts</b> (pistas usadas: '+S.lab.hintsUsed+', solución vista: '+(S.lab.sawSolution?'sí':'no')+') · Racha: '+S.stats.streak+' 🔥':' · Revisa los fallos, apóyate en pistas y vuelve a validar.');
+  const body=$('modalBody');
+  body.innerHTML='';
+  for(const r of results){
+    const div=document.createElement('div');
+    div.className='vgoal '+(r.res.ok?'ok':'bad');
+    const gi=document.createElement('span');
+    gi.className='gi';
+    gi.textContent=r.res.ok?'✅':'❌';
+    const txt=document.createElement('div');
+    const lbl=document.createElement('div');
+    lbl.textContent=r.label;
+    txt.appendChild(lbl);
+    if(!r.res.ok){
+      const reason=document.createElement('div');
+      reason.className='gr';
+      reason.textContent='↳ '+(r.res.reason||'Fallo desconocido');
+      txt.appendChild(reason);
+    }
+    div.appendChild(gi);div.appendChild(txt);
+    body.appendChild(div);
+  }
+  m.classList.remove('hidden');
+}
+
+/* ============================== RENDER: TICKET ============================== */
+function renderTicket(){
+  if(!S.lab)return;
+  const s=S.lab.spec;
+  const meta=$('ticketMeta');
+  if(!meta)return;
+  meta.innerHTML='';
+  const add=(cls,txt)=>{const b=document.createElement('span');b.className='badge '+cls;b.textContent=txt;meta.appendChild(b);};
+  const sc=S.lab.scenario;
+  add('id','#'+s.ticket.id);
+  add('scen','🎬 '+sc.title);
+  add('diff-'+sc.diff,'Dificultad: '+sc.diff);
+  add('site','📍 Sucursal '+s.site);
+  add('prio-'+s.ticket.prio,'Prioridad: '+s.ticket.prio);
+  add('design',s.wanDesign==='static'?'🧭 WAN: rutas estáticas':'🧭 WAN: OSPF área 0');
+  $('tagDesign').textContent='Generado · seed '+s.seed;
+  const storyEl=$('ticketStory');
+  if(storyEl)storyEl.textContent='👤 '+sc.story(s);
+  $('ticketDesc').innerHTML='<b>Reporta:</b> '+s.ticket.tech+' (administrador del sitio).<br>'+
+    'Tu misión como ingeniero de red es diagnosticar capa por capa (física → VLAN → ruteo) y restaurar TODOS los objetivos del cliente usando la CLI de cada dispositivo. Detalles levantados por la mesa de ayuda:';
+  const symp=$('ticketSymp');
+  symp.innerHTML='';
+  for(const f of S.lab.faults){
+    const li=document.createElement('li');
+    li.textContent='⚠ '+f.symptom;
+    symp.appendChild(li);
+  }
+  const pt=$('planTable');
+  pt.innerHTML='';
+  const row=(a,b,c,d)=>{const tr=document.createElement('tr');for(const x of [a,b,c,d]){if(x===undefined)continue;const td=document.createElement('td');td.textContent=x;tr.appendChild(td);}pt.appendChild(tr);};
+  const head=(...cols)=>{const tr=document.createElement('tr');for(const c of cols){const th=document.createElement('th');th.textContent=c;tr.appendChild(th);}pt.appendChild(tr);};
+  head('Elemento','ID/Nombre','Red / IP','Gateway');
+  row('VLAN tránsito','VLAN 99',s.nets.transit.net+'/24','—');
+  row('Gateway tránsito','SVI SW1',s.nets.transit.sw1+' · R1: '+s.nets.transit.r1,'—');
+  row('VLAN ADMIN','VLAN '+s.va,s.nets.admin.net+'/24',s.nets.admin.gw);
+  row('VLAN VENTAS','VLAN '+s.vv,s.nets.ventas.net+'/24',s.nets.ventas.gw);
+  row('VLAN SOPORTE','VLAN '+s.vs,s.nets.soporte.net+'/24',s.nets.soporte.gw);
+  if(s.topo.sw3)row('VLAN CONTAB','VLAN '+s.vc,s.nets.contab.net+'/24',s.nets.contab.gw);
+  row(s.names.pc1,'PC (VLAN '+s.va+')',s.pcs.admin+'/24',s.nets.admin.gw);
+  row(s.names.pc2,'PC (VLAN '+s.vv+')',s.pcs.ventas+'/24',s.nets.ventas.gw);
+  row(s.names.pc3,'PC (VLAN '+s.vs+')',s.pcs.soporte+'/24',s.nets.soporte.gw);
+  if(s.topo.sw3)row(s.names.pc4,'PC (VLAN '+s.vc+')',s.pcs.contab+'/24',s.nets.contab.gw);
+  if(s.topo.fw){
+    row('WAN FW1 ↔ R1','/30',s.wan.r1fwNet+'/30','R1: '+s.wan.r1WanIp+' · FW: '+s.wan.fwLanIp);
+    row('WAN ISP ↔ FW1','/30',s.wan.ispNet+'/30','ISP: '+s.wan.ispIp+' · FW: '+s.wan.fwWanIp);
+  }else{
+    row('WAN ISP ↔ R1','/30',s.wan.ispNet+'/30','ISP: '+s.wan.ispIp+' · R1: '+s.wan.r1WanIp);
+  }
+  $('planNote').innerHTML='Nota del diseño: las SVI (gateways de VLAN) viven en <b>'+s.names.sw1+'</b>. R1 aplica NAT hacia Internet ('+INTERNET+'). '+
+    (s.topo.fw?'El tráfico WAN sale por <b>'+s.names.fw+'</b> hacia el ISP. ':'R1 conecta directo al ISP (sitio sin firewall). ')+
+    (s.wanDesign==='static'
+      ?'R1 y SW1 intercambian las rutas LAN/WAN con <b>rutas estáticas</b>.'
+      :'R1 y SW1 intercambian las rutas LAN con <b>OSPF área 0</b>; la ruta por defecto de SW1 es estática vía R1.');
+  const tl=$('topoList');
+  tl.innerHTML='';
+  const order=TOPO_ORDER.filter(id=>!!D()[id]);
+  for(const id of order){
+    const d=D()[id];
+    const li=document.createElement('li');
+    li.style.borderLeftColor=id.startsWith('PC')?'#0ea5e9':(isSwitch(d)?'#a78bfa':'#22d3ee');
+    li.innerHTML='<b>'+d.name+'</b> — '+d.role;
+    tl.appendChild(li);
+  }
+}
+
+/* ============================== RENDER: OBJETIVOS ============================== */
+function renderGoals(){
+  const ul=$('goalsList');
+  if(!ul||!S.lab)return;
+  const results=evaluateGoals();
+  S.lastResults=results;
+  ul.innerHTML='';
+  for(const r of results){
+    const li=document.createElement('li');
+    li.className=r.res.ok?'done':'pending';
+    li.innerHTML='<span class="ico">'+(r.res.ok?'✔':'○')+'</span><span>'+r.label+'</span>';
+    ul.appendChild(li);
+  }
+}
+
+/* ============================== RENDER: ESTADÍSTICAS ============================== */
+function renderStats(){
+  if(!S.stats)return;
+  const set=(id,v)=>{const el=$(id);if(el)el.textContent=v;};
+  set('stStreak',S.stats.streak);
+  set('stBest',S.stats.best);
+  set('stSolved',S.stats.solved);
+  set('stScore',S.stats.bestScore?S.stats.bestScore+' pts':'—');
+  const chips=$('chips');
+  if(chips)chips.innerHTML=
+    '<span class="chip hot">🔥 Racha: <b>'+S.stats.streak+'</b></span>'+
+    '<span class="chip">✅ Resueltos: <b>'+S.stats.solved+'</b></span>'+
+    '<span class="chip">🧪 Intentos: <b>'+S.stats.attempts+'</b></span>'+
+    '<span class="chip">🏆 Mejor racha: <b>'+S.stats.best+'</b></span>';
+  const hist=$('stHist');
+  if(hist){
+    hist.innerHTML=S.stats.history.length
+      ? 'Últimos laboratorios:<br>'+S.stats.history.map(h=>'• '+h.id+' ('+h.site+(h.diff?' · '+h.diff:'')+') — '+h.score+' pts · '+h.date).join('<br>')
+      : 'Aún no resuelves laboratorios. ¡Genera uno y comienza tu racha!';
+  }
+}
+
+/* ============================== RENDER: TOPOLOGÍA SVG ============================== */
+const TOPO_ORDER=['ISP','FW1','R1','SW1','SW2','SW3','PC1','PC2','PC3','PC4'];
+function positionsFor(s){
+  const P={
+    ISP:{x:80,y:80},FW1:{x:262,y:80},R1:{x:455,y:80},
+    SW1:{x:455,y:265},SW2:{x:715,y:265},
+    PC1:{x:300,y:452},PC2:{x:625,y:452},PC3:{x:810,y:452}
+  };
+  if(!s.topo.fw)P.ISP={x:200,y:80};
+  if(s.topo.sw3){P.SW3={x:880,y:140};P.PC4={x:880,y:345};}
+  return P;
+}
+const NS='http://www.w3.org/2000/svg';
+function svgEl(tag,attrs){
+  const el=document.createElementNS(NS,tag);
+  for(const k in attrs)el.setAttribute(k,attrs[k]);
+  return el;
+}
+
+function iconFor(type){
+  const g=svgEl('g',{class:'iconbg'});
+  if(type==='isp'){
+    g.appendChild(svgEl('path',{d:'M-30,4 a30,22 0 0 1 8,-30 a22,18 0 0 1 30,-6 a20,16 0 0 1 24,14 a16,14 0 0 1 -4,22 z',fill:'#12253f',stroke:'#38bdf8','stroke-width':'2'}));
+    const t=svgEl('text',{x:0,y:8,'text-anchor':'middle',fill:'#7dd3fc','font-size':'12','font-weight':'700'});
+    t.textContent='WAN';g.appendChild(t);
+  }else if(type==='firewall'){
+    g.appendChild(svgEl('rect',{x:-26,y:-18,width:52,height:36,rx:4,fill:'#2a1215',stroke:'#f87171','stroke-width':'2'}));
+    for(let i=-6;i<=6;i+=6)g.appendChild(svgEl('line',{x1:-26,y1:i,x2:26,y2:i,stroke:'#f87171','stroke-width':'1',opacity:.6}));
+    g.appendChild(svgEl('line',{x1:-8,y1:-18,x2:-8,y2:-6,stroke:'#f87171','stroke-width':'1',opacity:.6}));
+    g.appendChild(svgEl('line',{x1:10,y1:-6,x2:10,y2:6,stroke:'#f87171','stroke-width':'1',opacity:.6}));
+    g.appendChild(svgEl('line',{x1:-12,y1:6,x2:-12,y2:18,stroke:'#f87171','stroke-width':'1',opacity:.6}));
+  }else if(type==='router'){
+    g.appendChild(svgEl('circle',{cx:0,cy:0,r:22,fill:'#0e2a1c',stroke:'#4ade80','stroke-width':'2'}));
+    g.appendChild(svgEl('path',{d:'M-12,0 H12 M6,-5 L12,0 L6,5 M-6,-5 L-12,0 L-6,5 M0,-12 V12 M-5,6 L0,12 L5,6 M-5,-6 L0,-12 L5,-6',stroke:'#4ade80','stroke-width':'1.8',fill:'none','stroke-linecap':'round'}));
+  }else if(type==='l3switch'||type==='l2switch'){
+    const stroke=type==='l3switch'?'#a78bfa':'#38bdf8';
+    const fill=type==='l3switch'?'#1d1533':'#0f2233';
+    g.appendChild(svgEl('rect',{x:-32,y:-15,width:64,height:30,rx:5,fill:fill,stroke:stroke,'stroke-width':'2'}));
+    g.appendChild(svgEl('path',{d:'M-20,-4 H14 M8,-9 L14,-4 L8,1 M20,6 H-14 M-8,1 L-14,6 L-8,11',stroke:stroke,'stroke-width':'1.7',fill:'none','stroke-linecap':'round'}));
+    if(type==='l3switch'){
+      const t=svgEl('text',{x:24,y:-14,'text-anchor':'middle',fill:'#c4b5fd','font-size':'9','font-weight':'700'});
+      t.textContent='L3';g.appendChild(t);
+    }
+  }else if(type==='pc'){
+    g.appendChild(svgEl('rect',{x:-17,y:-14,width:34,height:22,rx:3,fill:'#101c33',stroke:'#7dd3fc','stroke-width':'2'}));
+    g.appendChild(svgEl('rect',{x:-13,y:-10,width:26,height:14,rx:1,fill:'#1d3a5f'}));
+    g.appendChild(svgEl('rect',{x:-6,y:8,width:12,height:4,fill:'#7dd3fc'}));
+    g.appendChild(svgEl('rect',{x:-12,y:12,width:24,height:3,rx:1.5,fill:'#7dd3fc'}));
+  }
+  return g;
+}
+
+function buildTopology(){
+  const svg=$('topo');
+  if(!svg||!S.lab)return;
+  const POS=positionsFor(S.lab.spec);
+  while(svg.firstChild)svg.removeChild(svg.firstChild);
+  S.el={links:{},titles:{},devs:{},plabels:{}};
+  for(const l of S.lab.links){
+    const pa=POS[l.a.dev],pb=POS[l.b.dev];
+    const line=svgEl('line',{x1:pa.x,y1:pa.y,x2:pb.x,y2:pb.y,class:'link'});
+    const title=document.createElementNS(NS,'title');
+    line.appendChild(title);
+    svg.appendChild(line);
+    S.el.links[l.id]=line;
+    S.el.titles[l.id]=title;
+    const midX=(pa.x+pb.x)/2, midY=(pa.y+pb.y)/2;
+    const lab=svgEl('text',{x:midX,y:midY-6,class:'portlabel',fill:'#54708f','font-size':'9','text-anchor':'middle'});
+    lab.textContent=l.label;
+    svg.appendChild(lab);
+    if(l.a.port){
+      const t1=svgEl('text',{x:pa.x+(pb.x-pa.x)*0.26,y:pa.y+(pb.y-pa.y)*0.26+11,class:'portlabel'});
+      t1.textContent=l.a.port;svg.appendChild(t1);
+    }
+    if(l.b.port){
+      const t2=svgEl('text',{x:pa.x+(pb.x-pa.x)*0.74,y:pa.y+(pb.y-pa.y)*0.74+11,class:'portlabel'});
+      t2.textContent=l.b.port;svg.appendChild(t2);
+    }
+  }
+  const order=TOPO_ORDER.filter(id=>!!D()[id]);
+  for(const id of order){
+    const d=D()[id];
+    const p=POS[id];
+    const g=svgEl('g',{class:'devg',transform:'translate('+p.x+','+p.y+')',id:'g-'+id});
+    const halo=svgEl('circle',{cx:0,cy:0,r:40,fill:'none',stroke:'#22d3ee','stroke-width':'1.5',class:'halo','stroke-dasharray':'4 4'});
+    g.appendChild(halo);
+    g.appendChild(iconFor(d.type));
+    const name=svgEl('text',{x:0,y:38,class:'devlabel'});
+    name.textContent=d.name;
+    g.appendChild(name);
+    const sub=svgEl('text',{x:0,y:50,class:'devsub'});
+    sub.textContent=d.type==='pc'?(d.pc.ip):typeLabel(d.type);
+    g.appendChild(sub);
+    const led=svgEl('circle',{cx:26,cy:-22,r:4.5,fill:'#22c55e'});
+    g.appendChild(led);
+    const title=document.createElementNS(NS,'title');
+    title.textContent=d.name+' — '+d.role+(hasCli(d)?'\nClic para abrir la consola':'\n(No gestionable)');
+    g.appendChild(title);
+    g.addEventListener('click',()=>{
+      if(!hasCli(d)){toast('☁️ El ISP (nube WAN) no es gestionable en el simulador.');return;}
+      openTerminal(d.id);
+    });
+    svg.appendChild(g);
+    S.el.devs[id]={g:g,led:led,name:name,sub:sub,title:title};
+  }
+  updateLinks();
+  updateLeds();
+}
+
+function typeLabel(t){
+  return t==='isp'?'Internet':t==='firewall'?'Firewall':t==='router'?'Router':t==='l3switch'?'Switch L3':t==='l2switch'?'Switch L2':'PC';
+}
+
+function updateLinks(){
+  if(!S.lab||!S.el.links)return;
+  for(const l of S.lab.links){
+    const el=S.el.links[l.id];
+    if(!el)continue;
+    const st=linkState(l);
+    el.setAttribute('class','link '+(st==='ok'?'lk-ok':st==='down'?'lk-down':st==='stp'?'lk-stp':'lk-mis'));
+    const title=S.el.titles[l.id];
+    if(title){
+      const dA=D()[l.a.dev],dB=D()[l.b.dev];
+      let detail='';
+      if(st==='down')detail='CAÍDO — revisa shutdown/enlace físico';
+      else if(st==='stp')detail='BLOQUEADO por STP';
+      else if(st==='mis')detail='VLAN MISMATCH (modos/trunk incompatibles)';
+      else detail='UP/UP';
+      title.textContent=dA.name+' ('+(l.a.port||'NIC')+') ↔ '+dB.name+' ('+(l.b.port||'NIC')+')\n'+l.label+' — '+detail;
+    }
+  }
+}
+
+function deviceHealth(id){
+  const d=D()[id];
+  if(d.type==='isp')return 'ok';
+  if(d.type==='pc')return pcUp(id)?'ok':'down';
+  let worst='ok';
+  for(const l of S.lab.links){
+    if(l.a.dev!==id&&l.b.dev!==id)continue;
+    const st=linkState(l);
+    if(st==='down')worst='down';
+    else if((st==='mis'||st==='stp')&&worst!=='down')worst='warn';
+  }
+  return worst;
+}
+
+function updateLeds(){
+  if(!S.el.devs)return;
+  for(const id of Object.keys(S.el.devs)){
+    const el=S.el.devs[id];
+    if(!el)continue;
+    const d=D()[id];
+    const h=deviceHealth(id);
+    el.led.setAttribute('fill',h==='ok'?'#22c55e':h==='warn'?'#f59e0b':'#ef4444');
+    el.name.textContent=d.name;
+    el.sub.textContent=d.type==='pc'?d.pc.ip:typeLabel(d.type);
+    el.title.textContent=d.name+' — '+d.role+(hasCli(d)?'\nClic para abrir la consola':'\n(No gestionable)')+(h==='down'?'\n⚠ Estado: FALLA':h==='warn'?'\n⚠ Estado: DEGRADADO':'\n✔ Estado: OK');
+  }
+}
+
+/* ============================== RENDER: TERMINAL ============================== */
+function termOrder(){return TOPO_ORDER.filter(id=>!!D()[id]&&hasCli(D()[id]));}
+
+function renderTabs(){
+  const box=$('termTabs');
+  if(!box||!S.lab)return;
+  box.querySelectorAll('.tab').forEach(t=>t.remove());
+  for(const id of termOrder()){
+    const d=D()[id];
+    const b=document.createElement('button');
+    b.className='tab'+(S.active===id?' active':'');
+    b.textContent=d.name;
+    b.addEventListener('click',()=>openTerminal(id));
+    box.insertBefore(b,$('termTitle'));
+  }
+}
+
+function openTerminal(devId,quiet){
+  if(devId!=null){
+    S.active=devId;
+    const c=cliS(devId);
+    if(!c.out.length){
+      const d=D()[devId];
+      c.out.push({t:'══════════════════════════════════════════════',cls:'dim'});
+      c.out.push({t:' Cable de consola conectado a '+d.name+' ('+d.role+')',cls:'hdr'});
+      c.out.push({t:' Simulador Cisco IOS — escribe "?" para ayuda',cls:'dim'});
+      c.out.push({t:'══════════════════════════════════════════════',cls:'dim'});
+    }
+  }else S.active=null;
+  const out=$('termOut'),ph=$('termPlaceholder'),row=$('termInRow'),tt=$('termTitle');
+  if(!out)return;
+  if(S.active){
+    out.classList.remove('hidden');row.classList.remove('hidden');ph.classList.add('hidden');
+    if(tt)tt.textContent='Consola: '+D()[S.active].name+' · ↑/↓ historial · cls limpia';
+    renderTabs();
+    renderTerm();
+    const inp=$('termIn');
+    if(inp&&!quiet)setTimeout(()=>inp.focus(),30);
+  }else{
+    out.classList.add('hidden');row.classList.add('hidden');ph.classList.remove('hidden');
+    if(tt)tt.textContent='';
+    renderTabs();
+  }
+}
+
+function renderTerm(){
+  const out=$('termOut');
+  if(!out||!S.active)return;
+  const c=cliS(S.active);
+  const d=D()[S.active];
+  const frag=document.createDocumentFragment();
+  const start=Math.max(0,c.out.length-400);
+  for(let i=start;i<c.out.length;i++){
+    const e=c.out[i];
+    const div=document.createElement('div');
+    if(e.cls)div.className=e.cls;
+    div.textContent=e.t;
+    frag.appendChild(div);
+  }
+  out.innerHTML='';
+  out.appendChild(frag);
+  out.scrollTop=out.scrollHeight;
+  const pr=$('termPrompt');
+  if(pr)pr.textContent=promptOf(d);
+}
+
+function termSubmit(){
+  const inp=$('termIn');
+  if(!inp||!S.active)return;
+  const line=inp.value;
+  inp.value='';
+  runCommand(S.active,line);
+}
+
+function termKey(e){
+  const inp=$('termIn');
+  if(!inp||!S.active)return;
+  const c=cliS(S.active);
+  if(e.key==='Enter'){e.preventDefault();termSubmit();}
+  else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    if(!c.hist.length)return;
+    c.hi=Math.max(0,(c.hi===-1?c.hist.length:c.hi)-1);
+    inp.value=c.hist[c.hi]||'';
+  }else if(e.key==='ArrowDown'){
+    e.preventDefault();
+    if(c.hi===-1)return;
+    c.hi=Math.min(c.hist.length,c.hi+1);
+    inp.value=c.hi>=c.hist.length?'':(c.hist[c.hi]||'');
+    if(c.hi>=c.hist.length)c.hi=-1;
+  }
+}
+
+/* ============================== REFRESCO Y TOASTS ============================== */
+function refreshAll(){
+  if(!S.lab)return;
+  updateLinks();
+  updateLeds();
+  renderGoals();
+}
+
+let toastTimer=null;
+function toast(msg,kind){
+  const box=$('toasts');
+  if(!box)return;
+  const t=document.createElement('div');
+  t.className='toast'+(kind?' '+kind:'');
+  t.textContent=msg;
+  box.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .4s';setTimeout(()=>t.remove(),420);},3800);
+  while(box.children.length>4)box.firstChild.remove();
+}
+
+/* ============================== ARRANQUE ============================== */
+function boot(){
+  S.stats=loadStats();
+  $('btnNew').addEventListener('click',newLab);
+  $('btnReset').addEventListener('click',resetLab);
+  $('btnHint').addEventListener('click',giveHint);
+  $('btnSolution').addEventListener('click',showSolution);
+  $('btnValidate').addEventListener('click',validateLab);
+  $('btnCopySol').addEventListener('click',copySolution);
+  $('btnModalClose').addEventListener('click',()=>$('modal').classList.add('hidden'));
+  $('btnModalNew').addEventListener('click',()=>{$('modal').classList.add('hidden');newLab();});
+  $('modal').addEventListener('click',e=>{if(e.target===$('modal'))$('modal').classList.add('hidden');});
+  const sel=$('selDiff');
+  if(sel){
+    sel.value=S.stats.pref||'any';
+    sel.addEventListener('change',()=>{S.stats.pref=sel.value;saveStats();toast('🎚 Dificultad para el próximo lab: '+sel.options[sel.selectedIndex].textContent);});
+  }
+  const inp=$('termIn');
+  inp.addEventListener('keydown',termKey);
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape')$('modal').classList.add('hidden');
+  });
+  renderStats();
+  startLab((Date.now()^0xcc4a5eed)>>>0);
+}
+
+if(typeof document!=='undefined'&&document.getElementById('topo')){
+  boot();
+}
+</script>
+</body>
+</html>
