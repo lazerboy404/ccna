@@ -44,6 +44,47 @@ function Icon({ type }) {
       </g>
     )
   }
+  if (type === 'server') {
+    return (
+      <g>
+        <rect x="-16" y="-19" width="32" height="38" rx="3" fill="#101c33" stroke="#a78bfa" strokeWidth="2" />
+        {[-13, -6, 1, 8].map((y) => <rect key={y} x="-11" y={y} width="22" height="4" rx="1" fill="#2a2545" />)}
+        <circle cx="11" cy="-15" r="1.6" fill="#4ade80" />
+        <circle cx="11" cy="-8" r="1.6" fill="#22d3ee" />
+      </g>
+    )
+  }
+  if (type === 'camera') {
+    return (
+      <g>
+        <rect x="-19" y="-9" width="26" height="18" rx="4" fill="#101c33" stroke="#f59e0b" strokeWidth="2" />
+        <circle cx="9" cy="0" r="7" fill="#0b1728" stroke="#f59e0b" strokeWidth="2" />
+        <circle cx="9" cy="0" r="2.4" fill="#38bdf8" />
+        <rect x="-14" y="9" width="14" height="6" rx="2" fill="#1d3a5f" />
+      </g>
+    )
+  }
+  if (type === 'ap') {
+    return (
+      <g>
+        <rect x="-20" y="2" width="40" height="11" rx="3" fill="#101c33" stroke="#22d3ee" strokeWidth="2" />
+        <circle cx="0" cy="-4" r="3.4" fill="#22d3ee" />
+        <path d="M-14,-6 a19,19 0 0 1 28,0" stroke="#22d3ee" strokeWidth="1.6" fill="none" />
+        <path d="M-19,-12 a27,27 0 0 1 38,0" stroke="#22d3ee" strokeWidth="1.4" fill="none" opacity="0.7" />
+        <circle cx="16" cy="7.5" r="1.7" fill="#4ade80" />
+      </g>
+    )
+  }
+  if (type === 'wireless') {
+    return (
+      <g>
+        <rect x="-18" y="-10" width="36" height="20" rx="2.5" fill="#1d3a5f" stroke="#7dd3fc" strokeWidth="2" />
+        <rect x="-14" y="-6" width="28" height="12" rx="1" fill="#0b1728" />
+        <rect x="-20" y="10" width="40" height="4" rx="2" fill="#7dd3fc" />
+        <path d="M9,-14 a9,9 0 0 1 9,-4 M9,-19 a14,14 0 0 1 14,-5" stroke="#7dd3fc" strokeWidth="1.3" fill="none" opacity="0.8" />
+      </g>
+    )
+  }
   return (
     <g>
       <rect x="-17" y="-14" width="34" height="22" rx="3" fill="#101c33" stroke="#7dd3fc" strokeWidth="2" />
@@ -65,7 +106,7 @@ function LinkTag({ x, y, children }) {
   )
 }
 
-const plateWOf = (d) => Math.max(d.name.length * 6.8, (d.type === 'pc' ? d.pc.ip : typeLabel(d.type)).length * 5.8) + 14
+const plateWOf = (d) => Math.max(d.name.length * 6.8, (d.pc ? d.pc.ip : typeLabel(d.type)).length * 5.8) + 14
 
 function portLabelAt(P, Q, dev, port) {
   const dx = Q.x - P.x, dy = Q.y - P.y
@@ -197,7 +238,7 @@ export default function TopologyCanvas() {
             : 'UP/UP'
           return (
             <g key={l.id}>
-              <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} className={'link ' + LINK_CLASS[state]}>
+              <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} className={'link ' + LINK_CLASS[state] + (l.kind === 'wifi' ? ' lk-wifi' : '')}>
                 <title>{dA.name + ' (' + (l.a.port || 'NIC') + ') ↔ ' + dB.name + ' (' + (l.b.port || 'NIC') + ')\n' + l.label + ' — ' + detail}</title>
               </line>
               <text x={(pa.x + pb.x) / 2} y={(pa.y + pb.y) / 2 - 6} className="portlabel" fontSize="9" textAnchor="middle" fill="#8fb0d4" stroke="#070d1a" strokeWidth="2.6" strokeLinejoin="round" style={{ paintOrder: 'stroke' }}>{l.label}</text>
@@ -209,7 +250,7 @@ export default function TopologyCanvas() {
           const p = posMap[id]
           if (!p) return null
           const h = deviceHealth(lab, id)
-          const sub = d.type === 'pc' ? d.pc.ip : typeLabel(d.type)
+          const sub = d.pc ? d.pc.ip : typeLabel(d.type)
           const isSrc = src && src.dev === id
           const plateW = plateWOf(d)
           return (

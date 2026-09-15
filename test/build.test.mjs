@@ -110,14 +110,15 @@ test('los escenarios de construcción exponen spec.build y su historia se render
 
 test('cableado: el tipo de cable se valida (directo switch-PC, cruzado switch-switch)', () => {
   const lab = generateConstructionLab(11, scenario('c-edificio'))
+  const ep = lab.build.pcs[0].id
   assert.equal(connectPorts(lab, { dev: 'SW1', port: 'Gi0/5' }, { dev: 'SWB', port: 'Gi0/1' }, 'directo').ok, false)
   assert.equal(connectPorts(lab, { dev: 'SW1', port: 'Gi0/5' }, { dev: 'SWB', port: 'Gi0/1' }, 'cruzado').ok, true)
-  assert.equal(connectPorts(lab, { dev: 'SWB', port: 'Gi0/2' }, { dev: 'PCB1', port: 'NIC' }, 'cruzado').ok, false)
-  assert.equal(connectPorts(lab, { dev: 'SWB', port: 'Gi0/2' }, { dev: 'PCB1', port: 'NIC' }, 'directo').ok, true)
+  assert.equal(connectPorts(lab, { dev: 'SWB', port: 'Gi0/2' }, { dev: ep, port: 'NIC' }, 'cruzado').ok, false)
+  assert.equal(connectPorts(lab, { dev: 'SWB', port: 'Gi0/2' }, { dev: ep, port: 'NIC' }, 'directo').ok, true)
 })
 
 test('los equipos del laboratorio de construcción no se amontonan', () => {
-  for (const key of ['c-edificio', 'c-piso', 'c-edificio-avz']) {
+  for (const key of ['c-edificio', 'c-piso', 'c-edificio-avz', 'c-wifi']) {
     for (const seed of [1, 99, 555, 3140732973, 2257126979]) {
       const lab = generateConstructionLab(seed, scenario(key))
       assert.ok(lab.viewBox, 'el lab de construcción debe declarar su viewBox')
@@ -131,6 +132,25 @@ test('los equipos del laboratorio de construcción no se amontonan', () => {
       }
     }
   }
+})
+
+test('laboratorio WiFi (AP + SSID): cableado, troncal, SSID y SVI resuelven todo', () => {
+  const lab = generateConstructionLab(2024, scenario('c-wifi'))
+  const b = lab.build
+  assert.equal(lab.devices.AP1.type, 'ap')
+  assert.ok(b.endpoints.every((e) => lab.devices[e.id].type === 'wireless'))
+  wire(lab, 'SW1', 'Gi0/5', 'SWB', 'Gi0/1')
+  wire(lab, 'SWB', 'Gi0/2', 'AP1', 'Gi0/0')
+  run(lab, 'SW1', ['enable', 'configure terminal', 'vlan ' + b.vlan, 'name ' + b.vlanName, 'exit',
+    'interface Gi0/5', 'switchport mode trunk', 'switchport trunk allowed vlan ' + b.vlan,
+    'interface Vlan' + b.vlan, 'ip address ' + b.gw + ' 255.255.255.0', 'end'])
+  run(lab, 'SWB', ['enable', 'configure terminal', 'vlan ' + b.vlan, 'name ' + b.vlanName, 'exit',
+    'interface Gi0/1', 'switchport mode trunk', 'switchport trunk allowed vlan ' + b.vlan,
+    'interface Gi0/2', 'switchport mode trunk', 'switchport trunk allowed vlan ' + b.vlan, 'end'])
+  run(lab, 'AP1', ['enable', 'configure terminal', 'ssid CORP vlan ' + b.vlan, 'end'])
+  addReturnRoute(lab, b)
+  const failed = evaluateGoals(lab).filter((g) => !g.res.ok)
+  assert.deepEqual(failed.map((g) => g.label + ' :: ' + g.res.reason), [])
 })
 
 test('reiniciar la construcción deja la topología en blanco', () => {

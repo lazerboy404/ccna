@@ -50,5 +50,7 @@ export function pad(s, n) {
   return s.length >= n ? s : s + ' '.repeat(n - s.length)
 }
 
-export function isSwitch(d) { return d.type === 'l2switch' || d.type === 'l3switch' }
+export function isSwitch(d) { return !!d && (d.type === 'l2switch' || d.type === 'l3switch' || d.type === 'ap') }
+export function isEndpoint(d) { return !!d && (d.type === 'pc' || d.type === 'server' || d.type === 'camera' || d.type === 'wireless') }
+export function isWireless(d) { return !!d && d.type === 'wireless' }
 export function hasCli(d) { return d.type !== 'isp' }

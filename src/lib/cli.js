@@ -1,5 +1,5 @@
 // Consola Cisco IOS: modos user/priv/config/if/vlan/router, shows, ping y consola de PC
-import { validIp, parseMask, maskLen, netOf, macOf, pad, isSwitch, M0 } from './utils.js'
+import { validIp, parseMask, maskLen, netOf, macOf, pad, isSwitch, isEndpoint, M0 } from './utils.js'
 import { recompute, linkOf, otherSide, linkState, physUp, portUp, pcUp, sviUp, routesOf, primaryIp, labVlans, sameL2, pingSim, deliverTo, ospfNeighbors, linkBlocked, carriedVlans, aclAddrText, aclAppliesOn } from './engine.js'
 
 export function cliS(ctx, devId) {
@@ -170,7 +170,7 @@ function showArp(lab, d, o) {
     if (!up) continue
     for (const e of Object.values(lab.devices)) {
       if (e.id === d.id) continue
-      if (e.type === 'pc') {
+      if (isEndpoint(e)) {
         if (e.pc && pcUp(lab, e.id) && sameL2(lab, node, e.id)) rows.push([e.pc.ip, macOf(e.id), name])
       } else {
         for (const [n2, i2] of Object.entries(e.interfaces)) {
@@ -186,7 +186,7 @@ function showArp(lab, d, o) {
       if (l.a.dev === d.id && l.a.port === name) { me = l.a; ot = l.b } else if (l.b.dev === d.id && l.b.port === name) { me = l.b; ot = l.a }
       if (!me || !ot || !ot.port) continue
       const od = lab.devices[ot.dev]
-      if (od.type === 'pc') continue
+      if (isEndpoint(od)) continue
       const oi = od.interfaces[ot.port]
       if (oi && oi.ip && portUp(lab, od.id, ot.port) && !rows.some((r) => r[0] === oi.ip)) rows.push([oi.ip, macOf(od.id + ot.port), name])
     }
@@ -224,11 +224,25 @@ function showPortSecurity(lab, d, o) {
   }
 }
 
+function showWlan(lab, d, o) {
+  if (d.type !== 'ap') { o('% El comando show wlan aplica solo en Access Points.', 'err'); return }
+  const up = d.interfaces['Gi0/0']
+  o('Access Point: ' + d.name, 'hdr')
+  o('  Uplink Gi0/0: ' + (up ? (up.mode === 'trunk' ? 'trunk (vlans ' + (up.allowed.join(',') || '-') + ')' : 'access vlan ' + up.accessVlan) : '-'))
+  o(pad('  SSID', 18) + pad('VLAN', 8) + 'Clientes', 'hdr')
+  const list = d.ssids || []
+  for (const s of list) {
+    const clients = Object.values(lab.devices).filter((x) => x.pc && x.pc.ssid === s.name)
+    o(pad('  ' + s.name, 18) + pad(s.vlan != null ? s.vlan : '-', 8) + clients.map((c) => c.name).join(', '), s.vlan != null ? 'ok' : 'err')
+  }
+  if (!list.length) o('  (sin SSIDs — configúralos con: ssid <nombre> vlan <id>)', 'dim')
+}
+
 function showRun(lab, d, o) {
   o('!', 'dim')
   o('hostname ' + d.name, 'hdr')
   o('!', 'dim')
-  if (d.type === 'pc') {
+  if (isEndpoint(d)) {
     o('!-- Configuración TCP/IP del equipo (consola de PC)', 'dim')
     o('ip address ' + d.pc.ip + ' ' + d.pc.mask)
     o('default-gateway ' + d.pc.gw)
@@ -273,6 +287,7 @@ function showRun(lab, d, o) {
     for (const nw of d.ospf.networks) o(' network ' + nw.net + ' ' + nw.wild + ' area ' + nw.area)
     o('!', 'dim')
   }
+  if (d.type === 'ap') for (const s of (d.ssids || [])) o('ssid ' + s.name + ' vlan ' + s.vlan)
   for (const r of d.staticRoutes || []) o('ip route ' + r.net + ' ' + r.mask + ' ' + r.via)
   for (const [aname, entries] of Object.entries(d.acls || {})) {
     for (const e of entries) o('access-list ' + aname + ' ' + e.action + ' ' + (e.proto || 'ip') + ' ' + aclAddrText(e.src) + ' ' + aclAddrText(e.dst))
@@ -282,7 +297,7 @@ function showRun(lab, d, o) {
 }
 
 function showIpProtocols(lab, d, o) {
-  if (d.type === 'pc') { o('% No aplica en PCs.', 'err'); return }
+  if (isEndpoint(d)) { o('% No aplica en equipos finales (PC/servidor/cámara/laptop).', 'err'); return }
   if (!d.ospf || !d.ospf.enabled) {
     o('% No hay procesos de enrutamiento dinámico configurados.', 'err')
     if ((d.staticRoutes || []).length) o('Existen rutas estáticas (show ip route).', 'dim')
@@ -358,6 +373,7 @@ function showCmd(ctx, d, o, toks) {
   if (sub === 'spanning-tree') return showStp(lab, d, o)
   if (sub === 'access-lists') return showAccessLists(lab, d, o)
   if (sub === 'port-security') return showPortSecurity(lab, d, o)
+  if (sub === 'wlan') return showWlan(lab, d, o)
   if (sub === 'running-config' || sub === 'run') return showRun(lab, d, o)
   if (sub === 'version') {
     o('Cisco IOS Software, Simulator Image (CCNA-LAB), Version 15.2(4)M11', 'hdr')
@@ -370,8 +386,8 @@ function showCmd(ctx, d, o, toks) {
 }
 
 function helpFor(d, c, o) {
-  const common = ['show ip interface brief', 'show ip route', 'show interfaces [X]', 'show running-config', 'show access-lists', 'show port-security', 'show version', 'ping <ip>', 'exit']
-  if (d.type === 'pc') {
+  const common = ['show ip interface brief', 'show ip route', 'show interfaces [X]', 'show running-config', 'show access-lists', 'show port-security', 'show wlan', 'show version', 'ping <ip>', 'exit']
+  if (isEndpoint(d)) {
     o('Comandos disponibles (consola de PC):', 'hdr')
     o('  ipconfig                 Ver IP, máscara y gateway')
     o('  ip <ip> <máscara> <gw>   Configurar TCP/IP manualmente')
@@ -383,7 +399,7 @@ function helpFor(d, c, o) {
   o('Comandos disponibles en modo ' + c.mode + ':', 'hdr')
   if (c.mode === 'user') o('  enable | ping <ip> | show ... | exit')
   if (c.mode === 'priv') o('  configure terminal | disable | ping <ip> | show ... | exit')
-  if (c.mode === 'config') o('  interface <nombre> | vlan <id> | ip route <red> <máscara> <via> | router ospf 1 | access-list <n> <permit|deny> <proto> <origen> <destino> | hostname <X> | no <cmd> ... | end | exit')
+  if (c.mode === 'config') o('  interface <nombre> | vlan <id> | ip route <red> <máscara> <via> | router ospf 1 | access-list <n> <permit|deny> <proto> <origen> <destino> | ssid <nombre> vlan <id> | hostname <X> | no <cmd> ... | end | exit')
   if (c.mode === 'if') o('  ip address <ip> <máscara> | no ip address | shutdown | no shutdown | switchport mode access|trunk | switchport access vlan <id> | switchport trunk allowed vlan <lista|all|add X> | switchport port-security [maximum N|violation M|mac-address sticky] | ip access-group <acl> <in|out> | spanning-tree portfast [trunk] | description <txt> | end | exit')
   if (c.mode === 'vlan') o('  name <nombre> | exit | end')
   if (c.mode === 'router') o('  network <red> <wildcard> area 0 | no network <red> | exit | end')
@@ -447,7 +463,7 @@ export function execCommand(ctx, devId, line) {
   if (line === 'cls') { c.out = []; recompute(lab); return }
   if (line === '?' || line.toLowerCase() === 'help') { helpFor(d, c, o); recompute(lab); return }
 
-  if (d.type === 'pc') { pcCommand(ctx, d, c, o, line); recompute(lab); return }
+  if (isEndpoint(d)) { pcCommand(ctx, d, c, o, line); recompute(lab); return }
 
   const toks = line.split(' ')
   const cmd = toks[0].toLowerCase()
@@ -542,6 +558,26 @@ export function execCommand(ctx, devId, line) {
         d.aclApply = (d.aclApply || []).filter((a) => a.name !== name)
         o('ACL ' + name + ' eliminada.', 'dim')
       } else o('% La ACL ' + (name || '') + ' no existe.', 'err')
+      recompute(lab); return
+    }
+    if (cmd === 'ssid') {
+      if (d.type !== 'ap') { o('% El comando ssid solo aplica en Access Points.', 'err'); recompute(lab); return }
+      const name = toks[1]
+      const vid = +toks[3]
+      if (!name || (toks[2] || '').toLowerCase() !== 'vlan' || !vid || vid < 1 || vid > 4094) {
+        o('% Uso: ssid <nombre> vlan <id>', 'err'); recompute(lab); return
+      }
+      if (!d.vlans[vid]) d.vlans[vid] = 'VLAN' + String(vid).padStart(4, '0')
+      d.ssids = (d.ssids || []).filter((s) => s.name !== name)
+      d.ssids.push({ name, vlan: vid })
+      const up = d.interfaces['Gi0/0']
+      if (up) { up.mode = 'trunk'; up.allowed = Array.from(new Set(up.allowed.concat(vid))).sort((a, b) => a - b) }
+      o('SSID ' + name + ' → VLAN ' + vid + ' (uplink Gi0/0 en troncal con la VLAN permitida).', 'ok')
+      recompute(lab); return
+    }
+    if (cmd === 'no' && toks[1] === 'ssid') {
+      d.ssids = (d.ssids || []).filter((s) => s.name !== toks[2])
+      o('SSID ' + (toks[2] || '') + ' eliminado.', 'dim')
       recompute(lab); return
     }
     if (cmd === 'ip' && toks[1] === 'route') {

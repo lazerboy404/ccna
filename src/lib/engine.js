@@ -1,5 +1,5 @@
 // Motor de red: dominios L2 por VLAN, tablas de ruteo (conectadas/estáticas/OSPF) y simulación de ping bidireccional
-import { INTERNET, ipToInt, netOf, inSubnet, maskLen, isSwitch, hasCli } from './utils.js'
+import { INTERNET, ipToInt, netOf, inSubnet, maskLen, isSwitch, isEndpoint, isWireless, hasCli } from './utils.js'
 import { TOPO_ORDER } from './labGenerator.js'
 
 export function linkOf(lab, devId, port) {
@@ -9,7 +9,7 @@ export function pcLinkOf(lab, devId) {
   return lab.links.find((l) => l.a.dev === devId || l.b.dev === devId)
 }
 export function otherSide(l, devId) { return l.a.dev === devId ? l.b : l.a }
-export function ifaceNode(lab, devId, port) { return lab.devices[devId].type === 'pc' ? devId : devId + '.' + port }
+export function ifaceNode(lab, devId, port) { return isEndpoint(lab.devices[devId]) ? devId : devId + '.' + port }
 
 export function physUp(lab, devId, port) {
   const d = lab.devices[devId]
@@ -17,7 +17,7 @@ export function physUp(lab, devId, port) {
   const i = d.interfaces[port]
   if (!i || i.status !== 'up') return false
   if (isSwitch(d) && i.kind === 'port' && i.security && i.security.state === 'err-disabled') return false
-  if (isSwitch(d) && i.kind === 'port' && i.mode === 'access' && i.accessVlan != null && !d.vlans[i.accessVlan]) return false
+  if ((d.type === 'l2switch' || d.type === 'l3switch') && i.kind === 'port' && i.mode === 'access' && i.accessVlan != null && !d.vlans[i.accessVlan]) return false
   return true
 }
 export function portUp(lab, devId, port) {
@@ -26,12 +26,17 @@ export function portUp(lab, devId, port) {
   if (!lk) return true
   const o = otherSide(lk, devId)
   const od = lab.devices[o.dev]
-  if (od.type === 'pc' || !o.port) return true
+  if (isEndpoint(od) || !o.port) return true
   return physUp(lab, o.dev, o.port)
 }
 export function pcUp(lab, pcId) {
   const lk = pcLinkOf(lab, pcId)
   if (!lk) return false
+  if (lk.kind === 'wifi') {
+    const apSide = lk.a.dev === pcId ? lk.b : lk.a
+    const ap = lab.devices[apSide.dev]
+    return !!ap && ap.type === 'ap' && portUp(lab, ap.id, 'Gi0/0')
+  }
   const sw = lk.a.dev === pcId ? lk.b : lk.a
   return portUp(lab, sw.dev, sw.port)
 }
@@ -124,14 +129,28 @@ export function recompute(lab) {
       const swD = devs[swSide.dev], i = swD.interfaces[swSide.port]
       if (!i || i.mode !== 'access' || i.accessVlan == null) continue
       if (!portUp(lab, swSide.dev, swSide.port)) continue
-      if (devs[epSide.dev].type !== 'pc' && !epSide.port) continue
-      if (devs[epSide.dev].type !== 'pc' && !portUp(lab, epSide.dev, epSide.port)) continue
+      if (!isEndpoint(devs[epSide.dev]) && !epSide.port) continue
+      if (!isEndpoint(devs[epSide.dev]) && !portUp(lab, epSide.dev, epSide.port)) continue
       const v = i.accessVlan
       const epNode = ifaceNode(lab, epSide.dev, epSide.port)
       addNode(epNode, v)
       addNode(swSide.dev + '.' + swSide.port, v)
       uf(v).union(epNode, swSide.dev + '.' + swSide.port)
     }
+  }
+  for (const l of links) {
+    if (l.kind !== 'wifi') continue
+    const apSide = devs[l.a.dev] && devs[l.a.dev].type === 'ap' ? l.a : l.b
+    const clSide = apSide === l.a ? l.b : l.a
+    const ap = devs[apSide.dev], client = devs[clSide.dev]
+    if (!ap || !client || !client.pc) continue
+    if (!physUp(lab, ap.id, 'Gi0/0')) continue
+    const ssid = (ap.ssids || []).find((s) => s.name === client.pc.ssid)
+    if (!ssid || ssid.vlan == null) continue
+    const v = ssid.vlan
+    addNode(ap.id + '.Gi0/0', v)
+    addNode(client.id, v)
+    uf(v).union(client.id, ap.id + '.Gi0/0')
   }
   lab.eng = { ufs, nodeVlans }
   return lab.eng
@@ -157,14 +176,14 @@ export function deliverTo(lab, dstIp, fromNode, fromDevId) {
     if (l.a.dev === fromDevId) { me = l.a; other = l.b } else if (l.b.dev === fromDevId) { me = l.b; other = l.a }
     if (!me || !other || !other.port) continue
     const od = devs[other.dev]
-    if (od.type === 'pc') continue
+    if (isEndpoint(od)) continue
     const oi = od.interfaces[other.port]
     if (oi && oi.ip === dstIp && portUp(lab, od.id, other.port) && (!me.port || portUp(lab, fromDevId, me.port))) {
       return { dev: od, iface: other.port, node: od.id + '.' + other.port }
     }
   }
   for (const d of Object.values(devs)) {
-    if (d.type === 'pc') {
+    if (isEndpoint(d)) {
       if (d.pc && d.pc.ip === dstIp && pcUp(lab, d.id) && sameL2(lab, fromNode, d.id)) return { dev: d, iface: 'NIC', node: d.id }
       continue
     }
@@ -184,7 +203,7 @@ export function ospfNeighbors(lab, d) {
   if (!d.ospf || !d.ospf.enabled) return []
   const out = []
   for (const e of Object.values(lab.devices)) {
-    if (e.id === d.id || e.type === 'pc' || !e.ospf || !e.ospf.enabled) continue
+    if (e.id === d.id || isEndpoint(e) || !e.ospf || !e.ospf.enabled) continue
     let via = null
     for (const [n1, i1] of Object.entries(d.interfaces)) {
       if (!i1.ip || !i1.mask) continue
@@ -212,7 +231,7 @@ export function wildMatch(ip, net, wild) { return (ipToInt(ip) & ~ipToInt(wild) 
 
 export function routesOf(lab, d) {
   const rt = []
-  if (d.type === 'pc') {
+  if (isEndpoint(d)) {
     if (!pcUp(lab, d.id)) return rt
     const p = d.pc
     rt.push({ type: 'connected', net: netOf(p.ip, p.mask), mask: p.mask, via: null, node: d.id, iface: 'NIC', dev: d })
@@ -326,14 +345,14 @@ export function pingSim(lab, srcId, dstIp) {
   const d = lab.devices[srcId]
   if (!d) return { ok: false, reason: 'Dispositivo desconocido' }
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(String(dstIp))) return { ok: false, reason: 'Dirección IP inválida' }
-  if (d.type === 'pc') {
-    if (!pcUp(lab, d.id)) return { ok: false, reason: d.name + ': sin enlace físico a la red (puerto del switch caído o VLAN inexistente)' }
+  if (isEndpoint(d)) {
+    if (!pcUp(lab, d.id)) return { ok: false, reason: d.name + ': sin enlace a la red (cable/AP caído o VLAN inexistente)' }
     const p = d.pc
     if (!inSubnet(p.gw, netOf(p.ip, p.mask), p.mask) && !inSubnet(dstIp, netOf(p.ip, p.mask), p.mask)) {
       return { ok: false, reason: d.name + ': su gateway ' + p.gw + ' está fuera de su subred ' + netOf(p.ip, p.mask) + '/' + maskLen(p.mask) + ' — configura TCP/IP correcta' }
     }
   }
-  const srcIp = d.type === 'pc' ? d.pc.ip : primaryIp(lab, d)
+  const srcIp = isEndpoint(d) ? d.pc.ip : primaryIp(lab, d)
   const fwd = routeFrom(lab, d, dstIp, [], srcIp, null)
   if (!fwd.ok) return fwd
   if (dstIp === INTERNET) {
@@ -378,7 +397,16 @@ export function allPing(lab, srcs, dst) {
 
 export function linkState(lab, l) {
   const devs = lab.devices
-  const sideUp = (sd) => devs[sd.dev].type === 'pc' ? pcUp(lab, sd.dev) : portUp(lab, sd.dev, sd.port)
+  if (l.kind === 'wifi') {
+    const apSide = devs[l.a.dev] && devs[l.a.dev].type === 'ap' ? l.a : l.b
+    const clSide = apSide === l.a ? l.b : l.a
+    const ap = devs[apSide.dev], client = devs[clSide.dev]
+    if (!ap || !client || !client.pc) return 'down'
+    if (!physUp(lab, ap.id, 'Gi0/0')) return 'down'
+    const ssid = (ap.ssids || []).find((s) => s.name === client.pc.ssid)
+    return (ssid && ssid.vlan != null) ? 'ok' : 'mis'
+  }
+  const sideUp = (sd) => isEndpoint(devs[sd.dev]) ? pcUp(lab, sd.dev) : portUp(lab, sd.dev, sd.port)
   if (!sideUp(l.a) || !sideUp(l.b)) return 'down'
   if (l.kind === 'wan') return 'ok'
   const dA = devs[l.a.dev], dB = devs[l.b.dev]
@@ -396,7 +424,7 @@ export function deviceHealth(lab, id) {
   const d = lab.devices[id]
   if (!d) return 'ok'
   if (d.type === 'isp') return 'ok'
-  if (d.type === 'pc') return pcUp(lab, id) ? 'ok' : 'down'
+  if (isEndpoint(d)) return pcUp(lab, id) ? 'ok' : 'down'
   let worst = 'ok'
   for (const l of lab.links) {
     if (l.a.dev !== id && l.b.dev !== id) continue
@@ -420,7 +448,10 @@ export function positionsFor(spec) {
 
 export function labVlans(lab) {
   const set = new Set([99])
-  for (const d of Object.values(lab.devices)) if (d.vlans) for (const v of Object.keys(d.vlans)) set.add(+v)
+  for (const d of Object.values(lab.devices)) {
+    if (d.vlans) for (const v of Object.keys(d.vlans)) set.add(+v)
+    if (d.ssids) for (const s of d.ssids) if (s.vlan != null) set.add(+s.vlan)
+  }
   return Array.from(set).sort((a, b) => a - b)
 }
 
@@ -436,7 +467,8 @@ export function linkBetween(lab, idA, idB) {
 export function freePorts(lab, devId) {
   const d = lab.devices[devId]
   if (!d) return []
-  if (d.type === 'pc') return pcLinkOf(lab, devId) ? [] : ['NIC']
+  if (isWireless(d)) return []
+  if (isEndpoint(d)) return pcLinkOf(lab, devId) ? [] : ['NIC']
   if (!isSwitch(d)) return []
   return Object.keys(d.interfaces).filter((p) => {
     const i = d.interfaces[p]
@@ -448,24 +480,26 @@ export function canConnect(lab, a, b) {
   if (!a || !b || a.dev === b.dev) return false
   const da = lab.devices[a.dev], db = lab.devices[b.dev]
   if (!da || !db) return false
+  if (isWireless(da) || isWireless(db)) return false
   const sa = isSwitch(da), sb = isSwitch(db)
-  if (da.type === 'pc' && db.type === 'pc') return false
-  if (da.type === 'pc') return sb
-  if (db.type === 'pc') return sa
+  const ea = isEndpoint(da), eb = isEndpoint(db)
+  if (ea && eb) return false
+  if (ea) return sb
+  if (eb) return sa
   return sa && sb
 }
 
 export function cableKindOf(devA, devB) {
-  const aPc = devA.type === 'pc', bPc = devB.type === 'pc'
-  if (aPc && bPc) return null
-  if (aPc || bPc) return 'directo'
+  const aEp = isEndpoint(devA), bEp = isEndpoint(devB)
+  if (aEp && bEp) return null
+  if (aEp || bEp) return 'directo'
   return 'cruzado'
 }
 
 export const CABLE_LABEL = { auto: 'Automático', directo: 'Directo', cruzado: 'Cruzado' }
 
 export function connectPorts(lab, a, b, type) {
-  if (!canConnect(lab, a, b)) return { ok: false, reason: 'No se pueden cablear esos dispositivos (PC ↔ PC no es válido).' }
+  if (!canConnect(lab, a, b)) return { ok: false, reason: 'No se pueden cablear esos dispositivos (PC/servidor/cámara ↔ PC no es válido).' }
   if (!freePorts(lab, a.dev).includes(a.port) || !freePorts(lab, b.dev).includes(b.port)) return { ok: false, reason: 'Alguno de los puertos ya está en uso.' }
   const da = lab.devices[a.dev], db = lab.devices[b.dev]
   const need = cableKindOf(da, db)
@@ -473,8 +507,8 @@ export function connectPorts(lab, a, b, type) {
   if (t !== need) {
     return { ok: false, reason: 'Cable incorrecto: entre ' + da.name + ' y ' + db.name + ' necesitas cable ' + CABLE_LABEL[need].toLowerCase() + ' (' + need + ').' }
   }
-  const ea = da.type === 'pc' ? { dev: a.dev } : { dev: a.dev, port: a.port }
-  const eb = db.type === 'pc' ? { dev: b.dev } : { dev: b.dev, port: b.port }
+  const ea = isEndpoint(da) ? { dev: a.dev } : { dev: a.dev, port: a.port }
+  const eb = isEndpoint(db) ? { dev: b.dev } : { dev: b.dev, port: b.port }
   const id = 'LX' + (lab.links.length + 1) + '-' + Math.floor(Math.random() * 1000)
   lab.links.push({ id, a: ea, b: eb, kind: 'eth', label: 'Cable ' + t })
   recompute(lab)

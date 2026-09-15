@@ -52,6 +52,8 @@ export const SCENARIOS = [
     story: s => '«Remodelamos el piso y sumamos ' + s.build.pcs.length + ' puestos de ' + s.build.area + '. Ya hay switch con puertos libres, pero hay que cablear los equipos y crear la VLAN ' + s.build.vlan + ' (' + s.build.vlanName + ') con su gateway en ' + s.names.sw1 + '. El resto de la red ya funciona.» — Gerencia' },
   { key: 'c-edificio-avz', diff: 'Avanzado', build: true, template: 'building', title: 'Puesta en marcha del edificio', design: null, sw3: null, faultKeys: null,
     story: s => '«Día uno de ' + s.build.building + ': ' + s.build.pcs.length + ' estaciones de ' + s.build.area + ' y un switch nuevo listos para instalar. Diseña y monta la VLAN ' + s.build.vlan + ' (' + s.build.vlanName + ') completa: cableado, troncal, puertos de acceso y gateway en ' + s.names.sw1 + '. Que TODO quede navegando.» — Dirección' },
+  { key: 'c-wifi', diff: 'Intermedio', build: true, template: 'wifi', title: 'La oficina inalámbrica', design: null, sw3: null, faultKeys: null,
+    story: s => '«Abrimos un área de trabajo flexible y será todo por WiFi: llegó un Access Point y ' + s.build.pcs.length + ' laptops. Necesitamos la VLAN ' + s.build.vlan + ' (' + s.build.vlanName + ') con su SSID y gateway en ' + s.names.sw1 + '.» — TI' },
   { key: 'sorpresa', diff: 'Mixto', title: 'Incidente sin clasificar', design: null, sw3: null, faultKeys: null,
     story: s => '«La red "no sirve bien" — dice el cliente. Hay varios reportes sueltos y nadie sabe por dónde empezar. Lee los síntomas del ticket y diagnostica desde la capa física hacia arriba.» — Mesa de ayuda' },
 ]

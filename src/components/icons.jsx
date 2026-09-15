@@ -5,5 +5,9 @@ export function typeLabel(t) {
     : t === 'router' ? 'Router'
     : t === 'l3switch' ? 'Switch L3'
     : t === 'l2switch' ? 'Switch L2'
+    : t === 'ap' ? 'Access Point'
+    : t === 'server' ? 'Servidor'
+    : t === 'camera' ? 'Cámara IP'
+    : t === 'wireless' ? 'Cliente WiFi'
     : 'PC'
 }
