@@ -353,7 +353,27 @@ export function pingSim(lab, srcId, dstIp) {
 }
 
 export function evaluateGoals(lab) {
-  return lab.goals.map((g) => Object.assign({}, g, { res: pingSim(lab, g.src, g.dst) }))
+  return lab.goals.map((g) => Object.assign({}, g, { res: evalGoal(lab, g) }))
+}
+
+function evalGoal(lab, g) {
+  if (typeof g.check === 'function') {
+    try {
+      const r = g.check(lab)
+      if (r === true) return { ok: true }
+      if (r && typeof r === 'object') return r
+      return { ok: false, reason: 'Tarea pendiente' }
+    } catch (e) { return { ok: false, reason: 'No se pudo evaluar la tarea' } }
+  }
+  return pingSim(lab, g.src, g.dst)
+}
+
+export function allPing(lab, srcs, dst) {
+  for (const src of srcs) {
+    const r = pingSim(lab, src, dst)
+    if (!r.ok) return { ok: false, reason: r.reason }
+  }
+  return { ok: true }
 }
 
 export function linkState(lab, l) {
@@ -404,4 +424,44 @@ export function labVlans(lab) {
   return Array.from(set).sort((a, b) => a - b)
 }
 
-export function termOrder(lab) { return TOPO_ORDER.filter((id) => !!lab.devices[id] && hasCli(lab.devices[id])) }
+export function termOrder(lab) {
+  const src = (lab.order && lab.order.length) ? lab.order : TOPO_ORDER
+  return src.filter((id) => !!lab.devices[id] && hasCli(lab.devices[id]))
+}
+
+export function linkBetween(lab, idA, idB) {
+  return lab.links.find((l) => (l.a.dev === idA && l.b.dev === idB) || (l.a.dev === idB && l.b.dev === idA)) || null
+}
+
+export function freePorts(lab, devId) {
+  const d = lab.devices[devId]
+  if (!d) return []
+  if (d.type === 'pc') return pcLinkOf(lab, devId) ? [] : ['NIC']
+  if (!isSwitch(d)) return []
+  return Object.keys(d.interfaces).filter((p) => {
+    const i = d.interfaces[p]
+    return i.kind === 'port' && i.status === 'up' && !linkOf(lab, devId, p)
+  })
+}
+
+export function canConnect(lab, a, b) {
+  if (!a || !b || a.dev === b.dev) return false
+  const da = lab.devices[a.dev], db = lab.devices[b.dev]
+  if (!da || !db) return false
+  const sa = isSwitch(da), sb = isSwitch(db)
+  if (da.type === 'pc' && db.type === 'pc') return false
+  if (da.type === 'pc') return sb
+  if (db.type === 'pc') return sa
+  return sa && sb
+}
+
+export function connectPorts(lab, a, b) {
+  if (!canConnect(lab, a, b)) return { ok: false, reason: 'Esos dispositivos no se pueden cablear entre sí.' }
+  if (!freePorts(lab, a.dev).includes(a.port) || !freePorts(lab, b.dev).includes(b.port)) return { ok: false, reason: 'Alguno de los puertos ya está en uso.' }
+  const ea = lab.devices[a.dev].type === 'pc' ? { dev: a.dev } : { dev: a.dev, port: a.port }
+  const eb = lab.devices[b.dev].type === 'pc' ? { dev: b.dev } : { dev: b.dev, port: b.port }
+  const id = 'LX' + (lab.links.length + 1) + '-' + Math.floor(Math.random() * 1000)
+  lab.links.push({ id, a: ea, b: eb, kind: 'eth', label: 'Cable manual' })
+  recompute(lab)
+  return { ok: true, id }
+}

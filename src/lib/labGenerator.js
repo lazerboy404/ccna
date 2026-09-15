@@ -46,6 +46,12 @@ export const SCENARIOS = [
     story: s => '«La PC de Soporte amaneció sin cable según Windows, pero el cable está conectado. Ayer movieron equipos de lugar y el switch muestra el puerto en un estado raro.» — Soporte de TI' },
   { key: 'a-seguridad', diff: 'Avanzado', title: 'Candados mal puestos', design: null, sw3: null, faultKeys: ['acl-block', 'port-security'],
     story: s => '«El equipo de seguridad aplicó políticas nuevas y Soporte quedó aislado por dos frentes: su PC sin enlace y sin salida a Internet, mientras Ventas y Admin trabajan. Diagnostica por capas.» — Gerencia' },
+  { key: 'c-edificio', diff: 'Básico', build: true, template: 'building', title: 'El edificio nuevo', design: null, sw3: null, faultKeys: null,
+    story: s => '«Acabamos de habilitar ' + s.build.building + ' y necesitamos ' + s.build.pcs.length + ' equipos de ' + s.build.area + ' con red. Llegó un switch de acceso nuevo sin configurar y todavía no existe la VLAN ' + s.build.vlan + ' (' + s.build.vlanName + '). Cablea todo y deja el gateway en ' + s.names.sw1 + '.» — TI' },
+  { key: 'c-piso', diff: 'Intermedio', build: true, template: 'floor', title: 'Ampliación de piso', design: null, sw3: null, faultKeys: null,
+    story: s => '«Remodelamos el piso y sumamos ' + s.build.pcs.length + ' puestos de ' + s.build.area + '. Ya hay switch con puertos libres, pero hay que cablear los equipos y crear la VLAN ' + s.build.vlan + ' (' + s.build.vlanName + ') con su gateway en ' + s.names.sw1 + '. El resto de la red ya funciona.» — Gerencia' },
+  { key: 'c-edificio-avz', diff: 'Avanzado', build: true, template: 'building', title: 'Puesta en marcha del edificio', design: null, sw3: null, faultKeys: null,
+    story: s => '«Día uno de ' + s.build.building + ': ' + s.build.pcs.length + ' estaciones de ' + s.build.area + ' y un switch nuevo listos para instalar. Diseña y monta la VLAN ' + s.build.vlan + ' (' + s.build.vlanName + ') completa: cableado, troncal, puertos de acceso y gateway en ' + s.names.sw1 + '. Que TODO quede navegando.» — Dirección' },
   { key: 'sorpresa', diff: 'Mixto', title: 'Incidente sin clasificar', design: null, sw3: null, faultKeys: null,
     story: s => '«La red "no sirve bien" — dice el cliente. Hay varios reportes sueltos y nadie sabe por dónde empezar. Lee los síntomas del ticket y diagnostica desde la capa física hacia arriba.» — Mesa de ayuda' },
 ]

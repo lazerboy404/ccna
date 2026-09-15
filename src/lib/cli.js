@@ -481,6 +481,19 @@ export function execCommand(ctx, devId, line) {
     recompute(lab); return
   }
 
+  if ((cmd === 'interface' || cmd === 'int') && (c.mode === 'config' || c.mode === 'if' || c.mode === 'vlan' || c.mode === 'router')) {
+    const r = resolveIfc(d, toks.slice(1).join(' '))
+    if (r.err) { o(r.err, 'err'); recompute(lab); return }
+    c.ifc = r.ok; c.mode = 'if'; recompute(lab); return
+  }
+  if (cmd === 'vlan' && (c.mode === 'config' || c.mode === 'if' || c.mode === 'router')) {
+    if (!isSwitch(d)) { o('% Este dispositivo no es un switch.', 'err'); recompute(lab); return }
+    const vid = +toks[1]
+    if (!vid || vid < 1 || vid > 4094) { o('% Usage: vlan <1-4094>', 'err'); recompute(lab); return }
+    if (!d.vlans[vid]) d.vlans[vid] = 'VLAN' + String(vid).padStart(4, '0')
+    c.vid = vid; c.mode = 'vlan'; recompute(lab); return
+  }
+
   if (c.mode === 'config') {
     if (cmd === 'hostname') {
       if (!toks[1]) o('% Uso: hostname <nombre>', 'err')

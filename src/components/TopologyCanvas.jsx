@@ -1,6 +1,6 @@
-// Mapa interactivo de red: SVG con enlaces de color dinámico (verde/rojo/naranja) según el estado en vivo
+// Mapa interactivo de red: SVG con enlaces de color dinámico y modo cableado (clic en puertos)
 import { useNetwork } from '../context/NetworkContext.jsx'
-import { positionsFor, linkState, deviceHealth } from '../lib/engine.js'
+import { positionsFor, linkState, deviceHealth, freePorts } from '../lib/engine.js'
 import { TOPO_ORDER } from '../lib/labGenerator.js'
 import { typeLabel } from './icons.jsx'
 
@@ -43,7 +43,6 @@ function Icon({ type }) {
       </g>
     )
   }
-  // pc
   return (
     <g>
       <rect x="-17" y="-14" width="34" height="22" rx="3" fill="#101c33" stroke="#7dd3fc" strokeWidth="2" />
@@ -58,11 +57,20 @@ const LED_COLOR = { ok: '#22c55e', warn: '#f59e0b', down: '#ef4444' }
 const LINK_CLASS = { ok: 'lk-ok', down: 'lk-down', stp: 'lk-stp', mis: 'lk-mis' }
 
 export default function TopologyCanvas() {
-  const { lab, active, setActive } = useNetwork()
-  const pos = positionsFor(lab.spec)
+  const { lab, active, setActive, cabling, cabSrc, pickPort, cancelCab } = useNetwork()
+  const order = (lab.order && lab.order.length) ? lab.order : TOPO_ORDER.filter((id) => !!lab.devices[id])
+  const pos = lab.positions || positionsFor(lab.spec)
   const st = (l) => linkState(lab, l)
   return (
     <div className="bg-sim-panel border border-sim-border rounded-2xl p-2 shadow-lg">
+      {cabling && (
+        <div className="mx-2 mt-2 mb-1 rounded-lg border border-violet-700 bg-[#1a1035] px-3 py-2 text-[12px] text-[#e9dcff] flex items-center gap-2 flex-wrap">
+          <span>🔌 <b>Modo cableado</b> — {cabSrc
+            ? <>inicio en <b>{lab.devices[cabSrc.dev].name} {cabSrc.port}</b>: haz clic en un puerto libre del otro dispositivo.</>
+            : 'haz clic en un círculo de puerto para iniciar un cable.'}</span>
+          {cabSrc && <button onClick={cancelCab} className="ml-auto rounded-md border border-violet-700 bg-[#2a1b4d] px-2 py-0.5 text-[11px] font-semibold">Cancelar</button>}
+        </div>
+      )}
       <svg id="topo" viewBox="0 0 960 540" className="w-full h-auto block rounded-xl topo-bg">
         {lab.links.map((l) => {
           const pa = pos[l.a.dev], pb = pos[l.b.dev]
@@ -83,13 +91,13 @@ export default function TopologyCanvas() {
             </g>
           )
         })}
-        {TOPO_ORDER.filter((id) => !!lab.devices[id]).map((id) => {
+        {order.map((id) => {
           const d = lab.devices[id]
           const p = pos[id]
           const h = deviceHealth(lab, id)
           const sub = d.type === 'pc' ? d.pc.ip : typeLabel(d.type)
           return (
-            <g key={id} className={'devg' + (active === id ? ' active' : '')} transform={'translate(' + p.x + ',' + p.y + ')'} onClick={() => setActive(id)}>
+            <g key={id} className={'devg' + (active === id ? ' active' : '')} transform={'translate(' + p.x + ',' + p.y + ')'} onClick={() => { if (!cabling) setActive(id) }}>
               <circle cx="0" cy="0" r="40" fill="none" stroke="#22d3ee" strokeWidth="1.5" className="halo" strokeDasharray="4 4" />
               <g className="iconbg"><Icon type={d.type} /></g>
               <text x="0" y="38" className="devlabel" fontSize="11.5" fontWeight="600" textAnchor="middle" fill="#cbd9ee">{d.name}</text>
@@ -99,12 +107,30 @@ export default function TopologyCanvas() {
             </g>
           )
         })}
+        {cabling && order.map((id) => {
+          const fps = freePorts(lab, id)
+          if (!fps.length) return null
+          const p = pos[id]
+          const shown = fps.slice(0, 8)
+          const x0 = p.x - ((shown.length - 1) * 11)
+          return shown.map((port, j) => {
+            const x = x0 + j * 22
+            const y = p.y + 63
+            const sel = cabSrc && cabSrc.dev === id && cabSrc.port === port
+            return (
+              <g key={id + ':' + port} className="portdot" onClick={(e) => { e.stopPropagation(); pickPort(id, port) }}>
+                <circle cx={x} cy={y} r="7.5" fill={sel ? '#a78bfa' : '#0b2233'} stroke={sel ? '#c4b5fd' : '#22d3ee'} strokeWidth="1.4" />
+                <text x={x} y={y + 2.5} fontSize="6" textAnchor="middle" fill="#bfe6f5">{port === 'NIC' ? 'NIC' : port.replace('Gi0/', '')}</text>
+              </g>
+            )
+          })
+        })}
       </svg>
       <div className="flex flex-wrap gap-4 px-2 pt-2 pb-1 text-sim-muted text-xs">
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#22c55e' }} /> Up/Up (verde)</span>
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#ef4444' }} /> Down / shutdown / falla (rojo)</span>
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#f59e0b' }} /> STP o VLAN mismatch (naranja)</span>
-        <span className="ml-auto">Clic en un dispositivo → abre su consola CLI</span>
+        <span className="ml-auto">{cabling ? '🔌 Clic en los círculos de puerto para cablear' : 'Clic en un dispositivo → abre su consola CLI'}</span>
       </div>
     </div>
   )

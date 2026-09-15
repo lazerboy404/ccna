@@ -2,7 +2,7 @@
 import { useNetwork } from '../context/NetworkContext.jsx'
 
 export default function Header() {
-  const { stats, lab, setPref, newLab, resetLab, giveHint, revealSolution, validate } = useNetwork()
+  const { stats, lab, setPref, newLab, resetLab, giveHint, revealSolution, validate, cabling, toggleCabling } = useNetwork()
   const chip = (label, value, hot) => (
     <span className="bg-[#101f3c] border border-sim-border rounded-full px-2.5 py-1 text-xs text-sim-muted whitespace-nowrap">
       {label}: <b className={hot ? 'text-orange-400' : 'text-sim-text'}>{value}</b>
@@ -36,6 +36,13 @@ export default function Header() {
           <option value="Avanzado">🔴 Avanzado</option>
         </select>
         <button onClick={newLab} className="rounded-lg border border-cyan-800 bg-gradient-to-br from-cyan-700 to-cyan-800 px-3 py-2 text-[12.5px] font-semibold hover:brightness-125">🆕 Nuevo Laboratorio</button>
+        {lab.mode === 'build' && (
+          <button onClick={toggleCabling}
+            title="Conecta dispositivos haciendo clic en los puertos del diagrama"
+            className={'rounded-lg border px-3 py-2 text-[12.5px] font-semibold hover:brightness-125 ' + (cabling ? 'border-violet-400 bg-gradient-to-br from-violet-600 to-violet-700' : 'border-violet-800 bg-[#241746]')}>
+            🔌 {cabling ? 'Cableando…' : 'Cablear'}
+          </button>
+        )}
         <button onClick={resetLab} className="rounded-lg border border-sim-border bg-[#12213d] px-3 py-2 text-[12.5px] font-semibold hover:brightness-125" title="Restaura las fallas de este laboratorio">↺ Reiniciar</button>
         <button onClick={giveHint} className="rounded-lg border border-amber-900 bg-gradient-to-br from-amber-700 to-amber-800 px-3 py-2 text-[12.5px] font-semibold hover:brightness-125">💡 Pedir Pista</button>
         <button onClick={revealSolution} className="rounded-lg border border-violet-800 bg-gradient-to-br from-violet-700 to-violet-800 px-3 py-2 text-[12.5px] font-semibold hover:brightness-125">📖 Ver Solución</button>

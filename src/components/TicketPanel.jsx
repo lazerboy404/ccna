@@ -32,16 +32,22 @@ export default function TicketPanel() {
   const [copied, setCopied] = useState(false)
   const allHints = []
   for (const f of lab.faults) for (const h of f.hints) allHints.push(h)
+  if (lab.build && lab.build.hints) for (const h of lab.build.hints) allHints.push(h)
   const shown = allHints.slice(0, lab.hintsUsed)
+  const isBuild = lab.mode === 'build'
 
   const copySolution = () => {
     const lines = []
-    for (const f of lab.faults) {
-      lines.push('! Falla: ' + f.title)
-      for (const st of f.solution) {
-        const dev = lab.devices[st.devId]
-        lines.push('! En ' + (dev ? dev.name : st.devId) + ':')
-        lines.push(...st.cmds)
+    if (isBuild) {
+      lines.push(...lab.build.solution)
+    } else {
+      for (const f of lab.faults) {
+        lines.push('! Falla: ' + f.title)
+        for (const st of f.solution) {
+          const dev = lab.devices[st.devId]
+          lines.push('! En ' + (dev ? dev.name : st.devId) + ':')
+          lines.push(...st.cmds)
+        }
       }
     }
     const text = lines.join('\n')
@@ -68,6 +74,7 @@ export default function TicketPanel() {
     } else {
       rows.push(['WAN · ISP ↔ R1', s.wan.ispNet + '/30', 'ISP ' + s.wan.ispIp + ' · R1 ' + s.wan.r1WanIp])
     }
+    if (isBuild) rows.push(['★ NUEVA VLAN ' + lab.build.vlan + ' · ' + lab.build.vlanName, lab.build.vnet + '/24', lab.build.gw])
     return rows
   }
 
@@ -77,7 +84,7 @@ export default function TicketPanel() {
     <aside className="flex flex-col gap-3 min-w-0">
       <Panel>
         <div className="flex items-center justify-between gap-2 mb-2">
-          <h2 className="text-[11px] uppercase tracking-[0.18em] text-sim-accent font-bold">🎫 Ticket de Soporte</h2>
+          <h2 className="text-[11px] uppercase tracking-[0.18em] text-sim-accent font-bold">{isBuild ? '🏗 Proyecto de Construcción' : '🎫 Ticket de Soporte'}</h2>
           <span className="font-mono text-[10px] bg-[#132547]/60 border border-sim-border rounded-md px-1.5 py-0.5 text-sim-muted/70">seed {s.seed}</span>
         </div>
 
@@ -101,18 +108,24 @@ export default function TicketPanel() {
         </blockquote>
 
         <p className="text-[12px] text-sim-muted leading-relaxed mb-3">
-          <b className="text-sim-text">{s.ticket.tech}</b> (administrador del sitio). Diagnostica capa por capa (física → VLAN → ruteo) y restaura todos los objetivos con la CLI.
+          {isBuild
+            ? <><b className="text-sim-text">{s.ticket.tech}</b> (responsable del sitio). Cablea los equipos con el botón 🔌 y configura la red nueva (VLAN, troncal, puertos access y gateway) hasta cumplir todos los objetivos.</>
+            : <><b className="text-sim-text">{s.ticket.tech}</b> (administrador del sitio). Diagnostica capa por capa (física → VLAN → ruteo) y restaura todos los objetivos con la CLI.</>}
         </p>
 
-        <div className="text-[10px] uppercase tracking-wider text-red-300/80 font-bold mb-1.5">Síntomas a resolver · {lab.faults.length}</div>
-        <ul className="flex flex-col gap-1">
-          {lab.faults.map((f) => (
-            <li key={f.key} className="flex gap-2 bg-[#131f3a]/60 border-l-2 border-l-red-500/70 rounded-r-md px-2.5 py-1.5 text-[12.5px] leading-snug text-[#d5e2f5]">
-              <span className="text-red-400/80 shrink-0">⚠</span>
-              <span>{f.symptom}</span>
-            </li>
-          ))}
-        </ul>
+        {lab.faults.length > 0 && (
+          <>
+            <div className="text-[10px] uppercase tracking-wider text-red-300/80 font-bold mb-1.5">Síntomas a resolver · {lab.faults.length}</div>
+            <ul className="flex flex-col gap-1">
+              {lab.faults.map((f) => (
+                <li key={f.key} className="flex gap-2 bg-[#131f3a]/60 border-l-2 border-l-red-500/70 rounded-r-md px-2.5 py-1.5 text-[12.5px] leading-snug text-[#d5e2f5]">
+                  <span className="text-red-400/80 shrink-0">⚠</span>
+                  <span>{f.symptom}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
 
         <details className="group border-t border-sim-border/60 mt-3 pt-2.5">
           <summary className="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11.5px] font-semibold text-sim-muted hover:text-sim-text [&::-webkit-details-marker]:hidden">
@@ -150,7 +163,7 @@ export default function TicketPanel() {
             Topología afectada
           </summary>
           <ul className="flex flex-col gap-1 mt-2.5">
-            {TOPO_ORDER.filter((id) => !!lab.devices[id]).map((id) => {
+            {(lab.order && lab.order.length ? lab.order : TOPO_ORDER.filter((id) => !!lab.devices[id])).map((id) => {
               const d = lab.devices[id]
               const color = id.startsWith('PC') ? '#0ea5e9' : isSwitch(d) ? '#a78bfa' : '#22d3ee'
               return (
@@ -194,20 +207,28 @@ export default function TicketPanel() {
         <section className="bg-[#1a1035] border border-violet-900 rounded-2xl p-3.5 shadow-lg">
           <SectionTitle icon="📖" aside="−40 pts">Solución paso a paso</SectionTitle>
           <p className="text-[12px] text-[#c3d3ea] leading-relaxed mb-2">
-            Ejecuta estos comandos en la consola de cada dispositivo (clic en el diagrama o en su pestaña). Corresponden a ESTE laboratorio:
+            {isBuild
+              ? <>Cablea con el botón 🔌 y ejecuta estos pasos en la consola de cada dispositivo (clic en el diagrama o en su pestaña):</>
+              : <>Ejecuta estos comandos en la consola de cada dispositivo (clic en el diagrama o en su pestaña). Corresponden a ESTE laboratorio:</>}
           </p>
-          {lab.faults.map((f) => (
-            <div key={f.key} className="mb-2">
-              <div className="text-fuchsia-300 font-mono text-[11px] font-bold mb-1">▸ Falla: {f.title} ({f.category})</div>
-              {f.solution.map((st, i) => (
-                <div key={i} className="bg-[#150d2e] border border-violet-900 rounded-lg px-2.5 py-2 mb-1.5">
-                  <pre className="font-mono text-[12px] text-[#d9f2e3] leading-relaxed whitespace-pre-wrap">
-                    {'! En ' + (lab.devices[st.devId] ? lab.devices[st.devId].name : st.devId) + (lab.devices[st.devId] && lab.devices[st.devId].type === 'pc' ? ' (consola de PC)' : '') + ':\n' + st.cmds.join('\n')}
-                  </pre>
-                </div>
-              ))}
-            </div>
-          ))}
+          {isBuild
+            ? (
+              <pre className="font-mono text-[12px] text-[#d9f2e3] leading-relaxed whitespace-pre-wrap bg-[#150d2e] border border-violet-900 rounded-lg px-2.5 py-2">
+                {lab.build.solution.join('\n')}
+              </pre>
+            )
+            : lab.faults.map((f) => (
+              <div key={f.key} className="mb-2">
+                <div className="text-fuchsia-300 font-mono text-[11px] font-bold mb-1">▸ Falla: {f.title} ({f.category})</div>
+                {f.solution.map((st, i) => (
+                  <div key={i} className="bg-[#150d2e] border border-violet-900 rounded-lg px-2.5 py-2 mb-1.5">
+                    <pre className="font-mono text-[12px] text-[#d9f2e3] leading-relaxed whitespace-pre-wrap">
+                      {'! En ' + (lab.devices[st.devId] ? lab.devices[st.devId].name : st.devId) + (lab.devices[st.devId] && lab.devices[st.devId].type === 'pc' ? ' (consola de PC)' : '') + ':\n' + st.cmds.join('\n')}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            ))}
           <button onClick={copySolution} className="w-full mt-1 border border-sim-border rounded-lg py-1.5 text-[12px] font-semibold text-sim-text bg-[#12213d] hover:brightness-125">
             {copied ? '✔ Copiado' : '📋 Copiar comandos'}
           </button>

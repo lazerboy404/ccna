@@ -5,6 +5,7 @@ Simulador interactivo de Redes e Infraestructura CCNA — construido con **React
 ## Qué hace
 
 - **Generador dinámico de laboratorios**: tickets de soporte infinitos basados en escenarios de la vida real (básico / intermedio / avanzado / sorpresa) con IPs, VLANs, interfaces caídas, nombres de dispositivos y topologías variables (sitios con o sin firewall, con o sin planta nueva de Contabilidad).
+- **Modo Construcción (cableado por clic)**: laboratorios de diseño con topología dinámica — un edificio/piso nuevo, 3–6 equipos y una VLAN nueva. Cableas los dispositivos haciendo clic en los puertos del diagrama y configuras por CLI: creación de VLANs, troncal 802.1Q, puertos de acceso, gateway (SVI) y ruta de regreso para Internet.
 - **Fallas simuladas**: VLANs/trunking 802.1Q mal configurados, puertos en `shutdown`, enlaces bloqueados por STP, subredes/IPs incorrectas, rutas estáticas o procesos OSPF faltantes, puertos de PC aislados, **ACL que filtran tráfico** y **puertos en `err-disabled` por port-security** y más (16 tipos).
 - **Motor de red real**: dominios L2 por VLAN (bridging + troncales + SVIs), ruteo LPM con tablas conectadas/estáticas/OSPF, pings bidireccionales con NAT en R1 y validación de objetivos en vivo.
 - **Topología SVG interactiva**: cables verde (UP/UP), rojo (down/shutdown) y naranja (STP bloqueado o VLAN mismatch) que se actualizan **en tiempo real con cada comando**.
@@ -28,6 +29,7 @@ src/
 ├── lib/
 │   ├── utils.js             # Helpers de IP, RNG determinista, formato
 │   ├── labGenerator.js      # Generador de escenarios, dispositivos, fallas
+│   ├── buildGenerator.js    # Generador de labs de construcción (topología dinámica + cableado)
 │   ├── engine.js            # Motor de red (L2/L3, pings, validación)
 │   └── cli.js               # Parser y comandos Cisco IOS
 ├── App.jsx

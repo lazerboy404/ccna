@@ -2,7 +2,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { mulberry32, hasCli } from '../lib/utils.js'
 import { generateSpec, pickScenario, buildDevices, buildLinks, buildGoals, scenarioFaults } from '../lib/labGenerator.js'
-import { recompute, evaluateGoals } from '../lib/engine.js'
+import { generateConstructionLab } from '../lib/buildGenerator.js'
+import { recompute, evaluateGoals, connectPorts } from '../lib/engine.js'
 import { execCommand, ensureConsole } from '../lib/cli.js'
 
 const SKEY = 'ccna_sim_stats_v1'
@@ -23,6 +24,7 @@ const randomSeed = () => ((Date.now() ^ Math.floor(Math.random() * 2147483647)) 
 export function buildLab(seed, pref) {
   const rnd0 = mulberry32((seed >>> 0) ^ 0x7eed1)
   const sc = pickScenario(rnd0, pref)
+  if (sc.build) return generateConstructionLab(seed >>> 0, sc)
   const spec = generateSpec(seed >>> 0, sc)
   const faults = scenarioFaults(spec, sc)
   const devices = buildDevices(spec)
@@ -44,6 +46,8 @@ export function NetworkProvider({ children }) {
   const [active, setActiveState] = useState(null)
   const [validation, setValidation] = useState(null)
   const [toasts, setToasts] = useState([])
+  const [cabling, setCabling] = useState(false)
+  const [cabSrc, setCabSrc] = useState(null)
 
   const bump = useCallback(() => setTick((t) => t + 1), [])
   const toast = useCallback((msg, kind) => {
@@ -77,6 +81,7 @@ export function NetworkProvider({ children }) {
   const giveHint = useCallback(() => {
     const all = []
     for (const f of lab.faults) for (const h of f.hints) all.push(h)
+    if (lab.build && lab.build.hints) for (const h of lab.build.hints) all.push(h)
     if (lab.hintsUsed >= all.length) { toast('Ya no hay más pistas para este laboratorio. Revisa la solución o valida de nuevo.', 'err'); return }
     lab.hintsUsed++
     bump()
@@ -90,6 +95,18 @@ export function NetworkProvider({ children }) {
   }, [lab, bump, toast])
 
   const resetLab = useCallback(() => {
+    if (lab.mode === 'build') {
+      const nl = generateConstructionLab(lab.spec.seed, lab.scenario)
+      setLab(nl)
+      sessionsRef.current = {}
+      setActiveState(null)
+      setValidation(null)
+      setCabling(false)
+      setCabSrc(null)
+      bump()
+      toast('↺ Construcción reiniciada: topología y VLAN en blanco.')
+      return
+    }
     const devices = buildDevices(lab.spec)
     lab.faults.forEach((f) => f.apply(devices))
     lab.devices = devices
@@ -112,6 +129,8 @@ export function NetworkProvider({ children }) {
     sessionsRef.current = {}
     setActiveState(null)
     setValidation(null)
+    setCabling(false)
+    setCabSrc(null)
     bump()
     toast('🎫 ' + nl.spec.ticket.id + ' — ' + nl.scenario.title + ' (' + nl.scenario.diff + ') · Sucursal ' + nl.spec.site)
   }, [lab, stats.pref, bump, toast])
@@ -148,9 +167,26 @@ export function NetworkProvider({ children }) {
 
   const closeValidation = useCallback(() => setValidation(null), [])
 
+  const toggleCabling = useCallback(() => { setCabling((c) => !c); setCabSrc(null) }, [])
+  const cancelCab = useCallback(() => setCabSrc(null), [])
+  const pickPort = useCallback((devId, port) => {
+    if (!lab || lab.mode !== 'build') return
+    if (!cabSrc) { setCabSrc({ dev: devId, port }); return }
+    if (cabSrc.dev === devId && cabSrc.port === port) { setCabSrc(null); return }
+    const res = connectPorts(lab, cabSrc, { dev: devId, port })
+    if (res.ok) {
+      const a = lab.devices[cabSrc.dev], b = lab.devices[devId]
+      toast('🔌 Cable conectado: ' + a.name + (a.type === 'pc' ? '' : ' ' + cabSrc.port) + ' ↔ ' + b.name + (b.type === 'pc' ? '' : ' ' + port), 'ok')
+      setCabSrc(null)
+      setCabling(false)
+      bump()
+    } else toast(res.reason || 'No se pueden conectar esos puertos.', 'err')
+  }, [lab, cabSrc, toast, bump])
+
   const value = {
     lab, tick, active, sessions: sessionsRef.current, stats, toasts, validation, goalsResults,
     setActive, run, giveHint, revealSolution, resetLab, newLab, validate, closeValidation, setPref, toast,
+    cabling, cabSrc, toggleCabling, cancelCab, pickPort,
   }
   return <NetworkContext.Provider value={value}>{children}</NetworkContext.Provider>
 }
