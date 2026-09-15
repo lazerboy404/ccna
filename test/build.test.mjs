@@ -116,6 +116,23 @@ test('cableado: el tipo de cable se valida (directo switch-PC, cruzado switch-sw
   assert.equal(connectPorts(lab, { dev: 'SWB', port: 'Gi0/2' }, { dev: 'PCB1', port: 'NIC' }, 'directo').ok, true)
 })
 
+test('los equipos del laboratorio de construcción no se amontonan', () => {
+  for (const key of ['c-edificio', 'c-piso', 'c-edificio-avz']) {
+    for (const seed of [1, 99, 555, 3140732973, 2257126979]) {
+      const lab = generateConstructionLab(seed, scenario(key))
+      assert.ok(lab.viewBox, 'el lab de construcción debe declarar su viewBox')
+      const boxes = lab.order.map((id) => { const p = lab.positions[id]; return { id, x1: p.x - 68, x2: p.x + 68, y1: p.y - 28, y2: p.y + 58 } })
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i], b = boxes[j]
+          const overlap = a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2
+          assert.equal(overlap, false, key + ' seed ' + seed + ': ' + a.id + ' y ' + b.id + ' se enciman')
+        }
+      }
+    }
+  }
+})
+
 test('reiniciar la construcción deja la topología en blanco', () => {
   const lab = generateConstructionLab(7, scenario('c-edificio'))
   wire(lab, 'SW1', 'Gi0/5', 'SWB', 'Gi0/1')

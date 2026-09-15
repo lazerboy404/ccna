@@ -62,9 +62,10 @@ export function generateConstructionLab(seed, sc) {
   order.push(...pcs.map((p) => p.id))
 
   const positions = Object.assign({}, positionsFor(spec))
-  if (template === 'building') positions.SWB = { x: 780, y: 250 }
-  const baseX = template === 'building' ? 560 : 540
-  pcs.forEach((p, i) => { positions[p.id] = { x: baseX + (i % 4) * 78, y: 430 + Math.floor(i / 4) * 74 } })
+  if (template === 'building') positions.SWB = { x: 480, y: 585 }
+  const bandY = 690
+  const gapX = 150
+  pcs.forEach((p, i) => { positions[p.id] = { x: 480 + (i - (pcs.length - 1) / 2) * gapX, y: bandY } })
 
   const goalSpec = buildConstructionGoals(spec, { template, vlan, vlanName: areaName, vnet, gw, accSw, swId: 'SWB', swName, pcs, building })
   const build = {
@@ -75,6 +76,7 @@ export function generateConstructionLab(seed, sc) {
   spec.build = build
   const lab = {
     mode: 'build', spec, scenario: sc, devices, links, order, positions,
+    viewBox: '0 0 960 765',
     faults: [], goals: goalSpec, build,
     hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null,
   }

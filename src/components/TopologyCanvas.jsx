@@ -162,7 +162,7 @@ export default function TopologyCanvas() {
           {src && <button onClick={() => setSrc(null)} className="ml-auto rounded-md border border-violet-700 bg-[#2a1b4d] px-2 py-0.5 text-[11px] font-semibold">Cancelar</button>}
         </div>
       )}
-      <svg ref={svgRef} id="topo" viewBox="0 0 960 540" className="w-full h-auto block rounded-xl topo-bg" onClick={() => setPopup(null)}>
+      <svg ref={svgRef} id="topo" viewBox={lab.viewBox || '0 0 960 540'} className="w-full h-auto block rounded-xl topo-bg" onClick={() => setPopup(null)}>
         {lab.links.map((l) => {
           const pa = posMap[l.a.dev], pb = posMap[l.b.dev]
           if (!pa || !pb) return null
