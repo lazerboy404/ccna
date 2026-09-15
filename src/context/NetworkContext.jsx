@@ -30,7 +30,7 @@ export function buildLab(seed, pref) {
   const devices = buildDevices(spec)
   faults.forEach((f) => f.apply(devices))
   const lab = { spec, scenario: sc, devices, links: buildLinks(spec), faults, goals: buildGoals(spec), hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null }
-  lab.order = TOPO_ORDER.filter((id) => !!devices[id])
+  lab.order = TOPO_ORDER.filter((id) => !!devices[id]).concat(Object.keys(devices).filter((id) => !TOPO_ORDER.includes(id)))
   lab.positions = positionsFor(spec)
   recompute(lab)
   return lab

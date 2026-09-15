@@ -94,6 +94,18 @@ test('CLI: la ACL tiene deny implícito al final', () => {
   assert.equal(pingSim(lab, 'PC3', INTERNET).ok, false, 'una ACL sin permit explícito debe denegar por defecto')
 })
 
+test('fallas de servidor y cámara rompen su objetivo y se resuelven', () => {
+  for (const [key, brokenId] of [['i-servidor', 'g9'], ['i-camara', 'g11']]) {
+    const sc = SCENARIOS.find((s) => s.key === key)
+    const lab = buildLabFor(sc, 777)
+    const before = evaluateGoals(lab).find((g) => g.id === brokenId)
+    assert.equal(before.res.ok, false, key + ': el objetivo ' + brokenId + ' debería fallar')
+    solve(lab)
+    const failed = evaluateGoals(lab).filter((g) => !g.res.ok)
+    assert.deepEqual(failed.map((g) => g.label), [], key + ': quedó algo sin resolver')
+  }
+})
+
 test('CLI: show access-lists y show port-security no fallan', () => {
   const lab = plainLab(323)
   const ctx = lab.ctx || (lab.ctx = { lab, sessions: {} })

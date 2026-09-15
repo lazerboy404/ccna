@@ -54,6 +54,12 @@ export const SCENARIOS = [
     story: s => '«Día uno de ' + s.build.building + ': ' + s.build.pcs.length + ' estaciones de ' + s.build.area + ' y un switch nuevo listos para instalar. Diseña y monta la VLAN ' + s.build.vlan + ' (' + s.build.vlanName + ') completa: cableado, troncal, puertos de acceso y gateway en ' + s.names.sw1 + '. Que TODO quede navegando.» — Dirección' },
   { key: 'c-wifi', diff: 'Intermedio', build: true, template: 'wifi', title: 'La oficina inalámbrica', design: null, sw3: null, faultKeys: null,
     story: s => '«Abrimos un área de trabajo flexible y será todo por WiFi: llegó un Access Point y ' + s.build.pcs.length + ' laptops. Necesitamos la VLAN ' + s.build.vlan + ' (' + s.build.vlanName + ') con su SSID y gateway en ' + s.names.sw1 + '.» — TI' },
+  { key: 'i-servidor', diff: 'Intermedio', srv: true, title: 'El servidor fantasma', design: null, sw3: null, faultKeys: ['srv-wrong-vlan'],
+    story: s => '«Nadie alcanza el servidor de aplicaciones SRV-APP desde que "acomodaron" el rack. Sus luces están encendidas y el resto de la red trabaja normal.» — Sistemas' },
+  { key: 'i-camara', diff: 'Básico', cam: true, title: 'La cámara ciega', design: null, sw3: null, faultKeys: ['cam-shut'],
+    story: s => '«La cámara de la entrada (CAM-01) dejó de grabar; el resto del CCTV y la red funcionan. Algo pasó en el switch del core.» — Seguridad' },
+  { key: 'a-srv-cam', diff: 'Avanzado', srv: true, cam: true, title: 'Servidor y cámara caídos', design: null, sw3: null, faultKeys: ['srv-wrong-vlan', 'cam-shut'],
+    story: s => '«Dos reportes el mismo día: no alcanzamos el servidor de aplicaciones y la cámara de entrada no graba. Ambos cuelgan del core; diagnostica por capas.» — Mesa de ayuda' },
   { key: 'sorpresa', diff: 'Mixto', title: 'Incidente sin clasificar', design: null, sw3: null, faultKeys: null,
     story: s => '«La red "no sirve bien" — dice el cliente. Hay varios reportes sueltos y nadie sabe por dónde empezar. Lee los síntomas del ticket y diagnostica desde la capa física hacia arriba.» — Mesa de ayuda' },
 ]
@@ -85,7 +91,7 @@ export function generateSpec(seed, sc) {
   const w2 = w1 + 4 + 4 * R(8)
   return {
     seed: seed >>> 0, site, B, va, vv, vs, vc, transit: 99, wanDesign,
-    topo: { fw, sw3 },
+    topo: { fw, sw3, srv: !!(sc && sc.srv), cam: !!(sc && sc.cam) },
     ticket: { id: 'TK-' + (1000 + R(9000)), tech: pick(TECHS), prio: pick(PRIOS) },
     names: { isp: 'INTERNET (ISP)', fw: 'FW-' + site, r1: 'R1-' + site, sw1: 'SW1-CORE-' + site, sw2: 'SW2-ACC-' + site, sw3: 'SW3-CONTAB-' + site, pc1: 'PC-ADMIN', pc2: 'PC-VENTAS', pc3: 'PC-SOPORTE', pc4: 'PC-CONTAB' },
     nets: {
@@ -133,6 +139,8 @@ export function buildDevices(s) {
     ['Vlan' + s.vs]: rsvi(s.nets.soporte.gw, M24),
   }
   const sw1Stp = { 'Gi0/1': 'forwarding', 'Gi0/2': 'forwarding', 'Gi0/3': 'forwarding' }
+  if (s.topo.srv) { sw1Ifaces['Gi0/5'] = rport('access', s.va, null, 'Acceso servidor'); sw1Stp['Gi0/5'] = 'forwarding' }
+  if (s.topo.cam) { sw1Ifaces['Gi0/6'] = rport('access', s.vs, null, 'Acceso cámara IP'); sw1Stp['Gi0/6'] = 'forwarding' }
   if (s.topo.sw3) {
     sw1Vlans[s.vc] = 'CONTABILIDAD'
     sw1Ifaces['Gi0/4'] = rport('trunk', null, [s.vc], 'Troncal 802.1Q a SW3 (Contabilidad)')
@@ -181,6 +189,12 @@ export function buildDevices(s) {
   if (s.topo.sw3) {
     devs.PC4 = { id: 'PC4', name: s.names.pc4, type: 'pc', role: 'PC de Contabilidad (VLAN ' + s.vc + ')', interfaces: {}, pc: { ip: s.pcs.contab, mask: M24, gw: s.nets.contab.gw } }
   }
+  if (s.topo.srv) {
+    devs.SRV1 = { id: 'SRV1', name: 'SRV-APP', type: 'server', role: 'Servidor de aplicaciones (VLAN ' + s.va + ')', interfaces: {}, pc: { ip: '10.' + B + '.10.20', mask: M24, gw: s.nets.admin.gw } }
+  }
+  if (s.topo.cam) {
+    devs.CAM1 = { id: 'CAM1', name: 'CAM-01', type: 'camera', role: 'Cámara IP de seguridad (VLAN ' + s.vs + ')', interfaces: {}, pc: { ip: '10.' + B + '.30.20', mask: M24, gw: s.nets.soporte.gw } }
+  }
   return devs
 }
 
@@ -201,6 +215,8 @@ export function buildLinks(s) {
     L.push({ id: 'L8', a: { dev: 'SW1', port: 'Gi0/4' }, b: { dev: 'SW3', port: 'Gi0/1' }, kind: 'eth', label: 'Troncal CONTAB' })
     L.push({ id: 'L9', a: { dev: 'SW3', port: 'Gi0/2' }, b: { dev: 'PC4' }, kind: 'eth', label: 'Acceso CONTAB' })
   }
+  if (s.topo.srv) L.push({ id: 'L10', a: { dev: 'SW1', port: 'Gi0/5' }, b: { dev: 'SRV1' }, kind: 'eth', label: 'Acceso SERVIDOR' })
+  if (s.topo.cam) L.push({ id: 'L11', a: { dev: 'SW1', port: 'Gi0/6' }, b: { dev: 'CAM1' }, kind: 'eth', label: 'Acceso CÁMARA' })
   return L
 }
 
@@ -216,6 +232,13 @@ export function buildGoals(s) {
   if (s.topo.sw3) {
     g.push({ id: 'g7', label: s.names.pc4 + ' (' + s.pcs.contab + ') → Gateway CONTAB ' + s.nets.contab.gw, src: 'PC4', dst: s.nets.contab.gw })
     g.push({ id: 'g8', label: s.names.pc4 + ' → Internet (' + INTERNET + ') vía NAT en R1', src: 'PC4', dst: INTERNET })
+  }
+  if (s.topo.srv) {
+    g.push({ id: 'g9', label: 'SRV-APP (10.' + s.B + '.10.20) → Gateway ADMIN ' + s.nets.admin.gw, src: 'SRV1', dst: s.nets.admin.gw })
+    g.push({ id: 'g10', label: 'PC-ADMIN → SRV-APP (10.' + s.B + '.10.20)', src: 'PC1', dst: '10.' + s.B + '.10.20' })
+  }
+  if (s.topo.cam) {
+    g.push({ id: 'g11', label: 'CAM-01 (10.' + s.B + '.30.20) → Gateway SOPORTE ' + s.nets.soporte.gw, src: 'CAM1', dst: s.nets.soporte.gw })
   }
   return g
 }
@@ -364,6 +387,25 @@ export function makeFaults(s, rnd) {
       'En ' + n.sw2 + ' ejecuta show port-security y show interfaces Gi0/3: verás "Secure-shutdown". Recupera el puerto con shutdown y luego no shutdown.'],
     solution: [{ devId: 'SW2', cmds: ['enable', 'configure terminal', 'interface Gi0/3', 'shutdown', 'no shutdown', 'end'] }],
     apply: (d) => { d.SW2.interfaces['Gi0/3'].security = { enabled: true, max: 1, violation: 'shutdown', state: 'err-disabled' } } })
+
+  if (s.topo.srv) {
+    F.push({ key: 'srv-wrong-vlan', design: null, title: 'Servidor en la VLAN equivocada', category: 'VLAN / Trunking 802.1Q',
+      devId: 'SW1', port: 'Gi0/5',
+      symptom: 'El servidor de aplicaciones SRV-APP (10.' + B + '.10.20) dejó de ser alcanzable desde Admin y Ventas; quedó en la VLAN incorrecta tras un cambio.',
+      hints: ['El servidor tiene enlace pero no responde en su subred esperada: revisa la VLAN del puerto donde está conectado.',
+        'En ' + n.sw1 + ' usa show vlan brief: Gi0/5 debe estar en la VLAN ' + va + ' (ADMIN). Corrige con switchport access vlan ' + va + '.'],
+      solution: [{ devId: 'SW1', cmds: ['enable', 'configure terminal', 'interface Gi0/5', 'switchport access vlan ' + va, 'end'] }],
+      apply: (d) => { d.SW1.interfaces['Gi0/5'].accessVlan = vv } })
+  }
+  if (s.topo.cam) {
+    F.push({ key: 'cam-shut', design: null, title: 'Cámara IP sin enlace', category: 'Interfaz en shutdown',
+      devId: 'SW1', port: 'Gi0/6',
+      symptom: 'La cámara de seguridad CAM-01 (10.' + B + '.30.20) no responde: el puerto del switch que la alimenta está caído.',
+      hints: ['En el diagrama el enlace hacia la cámara está en rojo: el puerto de acceso puede estar en shutdown.',
+        'En ' + n.sw1 + ' ejecuta show ip interface brief: reactiva Gi0/6 con no shutdown.'],
+      solution: [{ devId: 'SW1', cmds: ['enable', 'configure terminal', 'interface Gi0/6', 'no shutdown', 'end'] }],
+      apply: (d) => { d.SW1.interfaces['Gi0/6'].status = 'down' } })
+  }
 
   if (s.topo.sw3) {
     const side3 = rnd() < 0.5 ? { dev: 'SW1', port: 'Gi0/4' } : { dev: 'SW3', port: 'Gi0/1' }
