@@ -39,6 +39,8 @@ src/
 └── index.css                # Tailwind + estilos de la terminal y enlaces
 test/
 └── engine.test.mjs          # Tests del motor, generador y CLI (node --test)
+scripts/
+└── audit-ui.mjs             # Auditoría de UI con Playwright (solapamientos, popup, errores)
 legacy/
 └── index.html               # Versión original de un solo archivo (referencia)
 ```
@@ -51,6 +53,7 @@ npm run dev      # http://localhost:5173
 npm run build    # genera dist/ listo para producción
 npm run preview  # sirve el build localmente
 npm test         # suite del motor/generador/CLI (node --test)
+npm run audit:ui # auditoría de UI con Playwright (solapamientos, popup, errores de runtime)
 ```
 
 ## Despliegue en Vercel

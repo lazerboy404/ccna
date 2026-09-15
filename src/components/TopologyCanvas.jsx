@@ -139,6 +139,7 @@ export default function TopologyCanvas() {
   const [cableType, setCableType] = useState('auto')
   const [src, setSrc] = useState(null)
   const [popup, setPopup] = useState(null)
+  const [, setScrollTick] = useState(0)
   const svgRef = useRef(null)
   const wrapRef = useRef(null)
   const dragRef = useRef(null)
@@ -258,6 +259,20 @@ export default function TopologyCanvas() {
   const portLabels = []
   for (const arr of Object.values(byDev)) arr.forEach((p, i) => portLabels.push({ x: p.x, y: p.y + (i - (arr.length - 1) / 2) * 11, text: p.text }))
 
+  // Resolución de colisiones entre etiquetas (prioriza las del enlace sobre las de puerto)
+  const labelBoxes = []
+  const placeLabels = (arr) => {
+    for (const lb of arr) {
+      const w = lb.text.length * 5.2 + 4
+      let y = lb.y, tries = 0
+      while (tries < 6 && labelBoxes.some((p) => Math.abs(p.x - lb.x) < (p.w + w) / 2 && Math.abs(p.y - y) < 11)) { y += 11; tries++ }
+      labelBoxes.push({ x: lb.x, y, w })
+      lb.y = y
+    }
+  }
+  placeLabels(midLabels)
+  placeLabels(portLabels)
+
   return (
     <div ref={wrapRef} className="relative bg-sim-panel border border-sim-border rounded-2xl p-2 shadow-lg">
       {cabling && (
@@ -275,7 +290,8 @@ export default function TopologyCanvas() {
           {src && <button onClick={() => setSrc(null)} className="ml-auto rounded-md border border-violet-700 bg-[#2a1b4d] px-2 py-0.5 text-[11px] font-semibold">Cancelar</button>}
         </div>
       )}
-      <svg ref={svgRef} id="topo" viewBox={lab.viewBox || '0 0 960 540'} className="w-full h-auto block rounded-xl topo-bg" onClick={() => setPopup(null)}>
+      <div className="overflow-x-auto" onScroll={() => setScrollTick((t) => t + 1)}>
+      <svg ref={svgRef} id="topo" viewBox={lab.viewBox || '0 0 960 540'} className="w-full h-auto block rounded-xl topo-bg min-w-[720px]" onClick={() => setPopup(null)}>
         {lab.links.map((l) => {
           const g = geom[l.id]
           if (!g) return null
@@ -341,7 +357,7 @@ export default function TopologyCanvas() {
               onClick={(e) => e.stopPropagation()}>
               <circle cx="0" cy="0" r="40" fill="none" stroke={isSrc ? '#a78bfa' : '#22d3ee'} strokeWidth={isSrc ? 2.5 : 1.5} className="halo" strokeDasharray="4 4" />
               <g className="iconbg"><Icon type={d.type} /></g>
-              <rect x={-plateW / 2} y="27" width={plateW} height="28" rx="7" fill="#070d1a" fillOpacity="0.92" stroke={isSrc ? '#6d5bd0' : '#1d3054'} strokeWidth="0.9" />
+              <rect className="plate" x={-plateW / 2} y="27" width={plateW} height="28" rx="7" fill="#070d1a" fillOpacity="0.92" stroke={isSrc ? '#6d5bd0' : '#1d3054'} strokeWidth="0.9" />
               <text x="0" y="38.5" className="devlabel" fontSize="11.5" fontWeight="600" textAnchor="middle" fill="#dce8fa">{d.name}</text>
               <text x="0" y="50" className="devsub" fontSize="9.5" textAnchor="middle" fill="#7f9ec2">{sub}</text>
               <circle cx="26" cy="-22" r="4.5" fill={LED_COLOR[h]} />
@@ -352,6 +368,7 @@ export default function TopologyCanvas() {
         {midLabels.map((p, i) => <LinkTag key={'ml' + i} x={p.x} y={p.y}>{p.text}</LinkTag>)}
         {portLabels.map((p, i) => <LinkTag key={'pl' + i} x={p.x} y={p.y}>{p.text}</LinkTag>)}
       </svg>
+      </div>
 
       {popup && (() => {
         const dev = lab.devices[popup.dev]
@@ -359,7 +376,7 @@ export default function TopologyCanvas() {
         const compatible = !src || src.dev === popup.dev || pairCompatible(src.dev, popup.dev)
         const pos = popupPos(popup.dev)
         return (
-          <div className="absolute z-30 w-[228px] rounded-xl border border-[#2a4a7a] bg-[#0c1730f7] shadow-2xl text-[12px]" style={{ left: pos.left, top: pos.top }}>
+          <div className="portpopup absolute z-30 w-[228px] rounded-xl border border-[#2a4a7a] bg-[#0c1730f7] shadow-2xl text-[12px]" style={{ left: pos.left, top: pos.top }}>
             <div className="flex items-center justify-between px-3 py-2 border-b border-[#1d3054]">
               <span className="font-semibold text-sim-text">{dev.name} <span className="text-sim-muted font-normal">· puertos libres</span></span>
               <button onClick={() => { setPopup(null); setSrc(null) }} className="text-sim-muted hover:text-sim-text">✕</button>

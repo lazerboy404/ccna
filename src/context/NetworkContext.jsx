@@ -59,7 +59,7 @@ export function NetworkProvider({ children }) {
   const bump = useCallback(() => setTick((t) => t + 1), [])
   const toast = useCallback((msg, kind) => {
     const id = Math.random().toString(36).slice(2)
-    setToasts((t) => [...t.slice(-3), { id, msg, kind: kind || '' }])
+    setToasts((t) => [...t.slice(-2), { id, msg, kind: kind || '' }])
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3800)
   }, [])
 
