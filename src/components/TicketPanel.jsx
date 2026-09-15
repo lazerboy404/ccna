@@ -4,20 +4,25 @@ import { useNetwork } from '../context/NetworkContext.jsx'
 import { INTERNET, isSwitch } from '../lib/utils.js'
 import { TOPO_ORDER } from '../lib/labGenerator.js'
 
-function Badge({ kind, children }) {
-  const map = {
-    id: 'text-cyan-300 border-cyan-900 bg-[#0c2a3a]',
-    scen: 'text-blue-300 border-blue-900 bg-[#0c1d3d]',
-    'diff-Básico': 'text-green-300 border-green-800 bg-[#0c2417]',
-    'diff-Intermedio': 'text-amber-300 border-amber-800 bg-[#241a05]',
-    'diff-Avanzado': 'text-red-300 border-red-900 bg-[#2a0f12]',
-    'diff-Mixto': 'text-cyan-300 border-cyan-800 bg-[#08222e]',
-    site: 'text-violet-300 border-violet-900 bg-[#1e1640]',
-    prio: 'text-red-300 border-red-900 bg-[#2d1215]',
-    prioMedia: 'text-amber-300 border-amber-900 bg-[#2b2008]',
-    design: 'text-emerald-300 border-emerald-900 bg-[#06251c]',
-  }
-  return <span className={'rounded-md border px-2 py-0.5 text-[11px] font-semibold ' + (map[kind] || map.id)}>{children}</span>
+const DIFF_TEXT = {
+  'Básico': 'text-green-300',
+  'Intermedio': 'text-amber-300',
+  'Avanzado': 'text-red-300',
+  'Mixto': 'text-cyan-300',
+}
+
+function Panel({ children, className = '' }) {
+  return <section className={'bg-sim-panel/95 border border-sim-border rounded-2xl p-3.5 shadow-lg ' + className}>{children}</section>
+}
+
+function SectionTitle({ icon, children, aside }) {
+  return (
+    <h2 className="flex items-center gap-2 mb-3 text-[11px] uppercase tracking-[0.16em] font-bold text-sim-muted">
+      <span className="text-sim-accent/80 text-[13px]">{icon}</span>
+      <span>{children}</span>
+      {aside && <span className="ml-auto normal-case tracking-normal font-medium text-[10.5px] text-sim-muted/70">{aside}</span>}
+    </h2>
+  )
 }
 
 export default function TicketPanel() {
@@ -47,117 +52,147 @@ export default function TicketPanel() {
 
   const planRows = () => {
     const rows = [
-      ['VLAN tránsito', 'VLAN 99', s.nets.transit.net + '/24', '—'],
-      ['Gateway tránsito', 'SVI SW1', s.nets.transit.sw1 + ' · R1: ' + s.nets.transit.r1, '—'],
-      ['VLAN ADMIN', 'VLAN ' + s.va, s.nets.admin.net + '/24', s.nets.admin.gw],
-      ['VLAN VENTAS', 'VLAN ' + s.vv, s.nets.ventas.net + '/24', s.nets.ventas.gw],
-      ['VLAN SOPORTE', 'VLAN ' + s.vs, s.nets.soporte.net + '/24', s.nets.soporte.gw],
+      ['VLAN 99 · Tránsito', s.nets.transit.net + '/24', s.nets.transit.sw1 + ' (SVI SW1)'],
+      ['VLAN ' + s.va + ' · Admin', s.nets.admin.net + '/24', s.nets.admin.gw],
+      ['VLAN ' + s.vv + ' · Ventas', s.nets.ventas.net + '/24', s.nets.ventas.gw],
+      ['VLAN ' + s.vs + ' · Soporte', s.nets.soporte.net + '/24', s.nets.soporte.gw],
     ]
-    if (s.topo.sw3) rows.push(['VLAN CONTAB', 'VLAN ' + s.vc, s.nets.contab.net + '/24', s.nets.contab.gw])
-    rows.push([s.names.pc1, 'PC (VLAN ' + s.va + ')', s.pcs.admin + '/24', s.nets.admin.gw])
-    rows.push([s.names.pc2, 'PC (VLAN ' + s.vv + ')', s.pcs.ventas + '/24', s.nets.ventas.gw])
-    rows.push([s.names.pc3, 'PC (VLAN ' + s.vs + ')', s.pcs.soporte + '/24', s.nets.soporte.gw])
-    if (s.topo.sw3) rows.push([s.names.pc4, 'PC (VLAN ' + s.vc + ')', s.pcs.contab + '/24', s.nets.contab.gw])
+    if (s.topo.sw3) rows.push(['VLAN ' + s.vc + ' · Contab', s.nets.contab.net + '/24', s.nets.contab.gw])
+    rows.push([s.names.pc1 + ' · VLAN ' + s.va, s.pcs.admin + '/24', s.nets.admin.gw])
+    rows.push([s.names.pc2 + ' · VLAN ' + s.vv, s.pcs.ventas + '/24', s.nets.ventas.gw])
+    rows.push([s.names.pc3 + ' · VLAN ' + s.vs, s.pcs.soporte + '/24', s.nets.soporte.gw])
+    if (s.topo.sw3) rows.push([s.names.pc4 + ' · VLAN ' + s.vc, s.pcs.contab + '/24', s.nets.contab.gw])
     if (s.topo.fw) {
-      rows.push(['WAN FW1 ↔ R1', '/30', s.wan.r1fwNet + '/30', 'R1: ' + s.wan.r1WanIp + ' · FW: ' + s.wan.fwLanIp])
-      rows.push(['WAN ISP ↔ FW1', '/30', s.wan.ispNet + '/30', 'ISP: ' + s.wan.ispIp + ' · FW: ' + s.wan.fwWanIp])
+      rows.push(['WAN · ISP ↔ FW1', s.wan.ispNet + '/30', 'ISP ' + s.wan.ispIp + ' · FW ' + s.wan.fwWanIp])
+      rows.push(['WAN · FW1 ↔ R1', s.wan.r1fwNet + '/30', 'FW ' + s.wan.fwLanIp + ' · R1 ' + s.wan.r1WanIp])
     } else {
-      rows.push(['WAN ISP ↔ R1', '/30', s.wan.ispNet + '/30', 'ISP: ' + s.wan.ispIp + ' · R1: ' + s.wan.r1WanIp])
+      rows.push(['WAN · ISP ↔ R1', s.wan.ispNet + '/30', 'ISP ' + s.wan.ispIp + ' · R1 ' + s.wan.r1WanIp])
     }
     return rows
   }
 
+  const prioClass = s.ticket.prio === 'Crítica' ? 'text-red-300' : s.ticket.prio === 'Media' ? 'text-amber-300' : 'text-sim-muted'
+
   return (
     <aside className="flex flex-col gap-3 min-w-0">
-      <section className="bg-sim-panel/95 border border-sim-border rounded-2xl p-3.5 shadow-lg">
-        <h2 className="text-[11.5px] uppercase tracking-widest text-sim-accent font-bold mb-2.5 flex items-center gap-2">
-          🎫 Ticket de Soporte <span className="ml-auto normal-case tracking-normal text-[10px] bg-[#132547] border border-sim-border rounded-md px-2 py-0.5 text-sim-muted">seed {s.seed}</span>
-        </h2>
-        <div className="flex gap-1.5 flex-wrap mb-2.5">
-          <Badge kind="id">#{s.ticket.id}</Badge>
-          <Badge kind="scen">🎬 {sc.title}</Badge>
-          <Badge kind={'diff-' + sc.diff}>Dificultad: {sc.diff}</Badge>
-          <Badge kind="site">📍 Sucursal {s.site}</Badge>
-          <Badge kind={s.ticket.prio === 'Media' ? 'prioMedia' : 'prio'}>Prioridad: {s.ticket.prio}</Badge>
-          <Badge kind="design">{s.wanDesign === 'static' ? '🧭 WAN: rutas estáticas' : '🧭 WAN: OSPF área 0'}</Badge>
+      <Panel>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h2 className="text-[11px] uppercase tracking-[0.18em] text-sim-accent font-bold">🎫 Ticket de Soporte</h2>
+          <span className="font-mono text-[10px] bg-[#132547]/60 border border-sim-border rounded-md px-1.5 py-0.5 text-sim-muted/70">seed {s.seed}</span>
         </div>
-        <div className="bg-[#0c2233] border-l-[3px] border-sim-accent rounded-lg px-3 py-2 italic text-[#bfe3f5] leading-relaxed text-[12.5px] mb-2.5">
-          👤 {sc.story(s)}
+
+        <div className="flex items-baseline gap-2 flex-wrap mb-1.5">
+          <span className="font-mono text-[12.5px] font-bold text-sim-accent">#{s.ticket.id}</span>
+          <span className="text-[15px] font-bold text-sim-text leading-tight">{sc.title}</span>
         </div>
-        <div className="text-[#c3d3ea] leading-relaxed mb-2 text-[13px]">
-          <b>Reporta:</b> {s.ticket.tech} (administrador del sitio). Diagnosticar capa por capa (física → VLAN → ruteo) y restaurar TODOS los objetivos usando la CLI de cada dispositivo:
+        <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11.5px] text-sim-muted mb-3">
+          <span>📍 {s.site}</span>
+          <span className="text-sim-border">·</span>
+          <span className={prioClass}>Prioridad {s.ticket.prio}</span>
+          <span className="text-sim-border">·</span>
+          <span className={DIFF_TEXT[sc.diff] || 'text-sim-muted'}>{sc.diff}</span>
+          <span className="text-sim-border">·</span>
+          <span>{s.wanDesign === 'static' ? 'WAN rutas estáticas' : 'WAN OSPF área 0'}</span>
         </div>
-        <ul className="flex flex-col gap-1.5 my-2">
+
+        <blockquote className="bg-[#0c1c30] border border-[#17314f] rounded-xl px-3.5 py-3 mb-3">
+          <div className="text-[10px] uppercase tracking-wider text-sim-accent/70 font-bold mb-1.5">Reporte del cliente</div>
+          <p className="text-[12.5px] leading-relaxed text-[#cfe6f7] italic">{sc.story(s)}</p>
+        </blockquote>
+
+        <p className="text-[12px] text-sim-muted leading-relaxed mb-3">
+          <b className="text-sim-text">{s.ticket.tech}</b> (administrador del sitio). Diagnostica capa por capa (física → VLAN → ruteo) y restaura todos los objetivos con la CLI.
+        </p>
+
+        <div className="text-[10px] uppercase tracking-wider text-red-300/80 font-bold mb-1.5">Síntomas a resolver · {lab.faults.length}</div>
+        <ul className="flex flex-col gap-1">
           {lab.faults.map((f) => (
-            <li key={f.key} className="bg-[#131f3a] border border-[#22345c] border-l-[3px] border-l-red-500 rounded-lg px-2.5 py-1.5 text-[12.5px] leading-snug text-[#d5e2f5]">⚠ {f.symptom}</li>
+            <li key={f.key} className="flex gap-2 bg-[#131f3a]/60 border-l-2 border-l-red-500/70 rounded-r-md px-2.5 py-1.5 text-[12.5px] leading-snug text-[#d5e2f5]">
+              <span className="text-red-400/80 shrink-0">⚠</span>
+              <span>{f.symptom}</span>
+            </li>
           ))}
         </ul>
-        <details open className="mt-1">
-          <summary className="cursor-pointer text-sim-accent text-[12px] font-semibold select-none mb-1.5">Plan de direccionamiento (documentación del cliente)</summary>
-          <table className="w-full border-collapse text-[11.5px] font-mono">
-            <thead>
-              <tr>
-                {['Elemento', 'ID/Nombre', 'Red / IP', 'Gateway'].map((h) => (
-                  <th key={h} className="text-left text-sim-muted font-semibold px-1.5 py-1 border-b border-sim-border uppercase text-[10px] tracking-wide">{h}</th>
+
+        <details className="group border-t border-sim-border/60 mt-3 pt-2.5">
+          <summary className="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11.5px] font-semibold text-sim-muted hover:text-sim-text [&::-webkit-details-marker]:hidden">
+            <span className="text-sim-accent/70 transition-transform group-open:rotate-90">▸</span>
+            Plan de direccionamiento
+          </summary>
+          <div className="overflow-x-auto mt-2.5">
+            <table className="w-full border-collapse text-[11px] font-mono tabular-nums">
+              <thead>
+                <tr>
+                  {['VLAN / Equipo', 'Subred / IP', 'Gateway'].map((h) => (
+                    <th key={h} className="text-left text-sim-muted/80 font-semibold px-1.5 py-1 border-b border-sim-border uppercase text-[9.5px] tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {planRows().map((r, i) => (
+                  <tr key={i}>{r.map((c, j) => <td key={j} className="px-1.5 py-1 border-b border-[#14233f] text-[#bcd0ea] whitespace-nowrap">{c}</td>)}</tr>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {planRows().map((r, i) => (
-                <tr key={i}>{r.map((c, j) => <td key={j} className="px-1.5 py-1 border-b border-[#14233f] text-[#bcd0ea]">{c}</td>)}</tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-[11.5px] text-[#c3d3ea] leading-relaxed mt-2">
-            Nota del diseño: las SVI (gateways de VLAN) viven en <b>{s.names.sw1}</b>. R1 aplica NAT hacia Internet ({INTERNET}). {' '}
-            {s.topo.fw ? <>El tráfico WAN sale por <b>{s.names.fw}</b> hacia el ISP. </> : 'R1 conecta directo al ISP (sitio sin firewall). '}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-sim-muted leading-relaxed mt-2">
+            Las SVI viven en <b className="text-sim-text">{s.names.sw1}</b>. R1 aplica NAT hacia Internet ({INTERNET}).{' '}
+            {s.topo.fw ? <>El tráfico WAN sale por <b className="text-sim-text">{s.names.fw}</b> hacia el ISP. </> : 'R1 conecta directo al ISP (sitio sin firewall). '}
             {s.wanDesign === 'static'
-              ? <>R1 y SW1 intercambian las rutas LAN/WAN con <b>rutas estáticas</b>.</>
-              : <>R1 y SW1 intercambian las rutas LAN con <b>OSPF área 0</b>; la ruta por defecto de SW1 es estática vía R1.</>}
+              ? <>Rutas LAN/WAN por <b className="text-sim-text">estáticas</b>.</>
+              : <>Rutas LAN por <b className="text-sim-text">OSPF área 0</b>; SW1 sale por ruta estática vía R1.</>}
           </p>
         </details>
-        <details className="mt-1.5">
-          <summary className="cursor-pointer text-sim-accent text-[12px] font-semibold select-none">Topología afectada</summary>
-          <ul className="flex flex-col gap-1.5 mt-2">
+
+        <details className="group border-t border-sim-border/60 mt-2 pt-2.5">
+          <summary className="flex items-center gap-1.5 cursor-pointer select-none list-none text-[11.5px] font-semibold text-sim-muted hover:text-sim-text [&::-webkit-details-marker]:hidden">
+            <span className="text-sim-accent/70 transition-transform group-open:rotate-90">▸</span>
+            Topología afectada
+          </summary>
+          <ul className="flex flex-col gap-1 mt-2.5">
             {TOPO_ORDER.filter((id) => !!lab.devices[id]).map((id) => {
               const d = lab.devices[id]
               const color = id.startsWith('PC') ? '#0ea5e9' : isSwitch(d) ? '#a78bfa' : '#22d3ee'
               return (
-                <li key={id} className="bg-[#131f3a] border border-[#22345c] rounded-lg px-2.5 py-1.5 text-[12.5px] text-[#d5e2f5]" style={{ borderLeft: '3px solid ' + color }}>
-                  <b>{d.name}</b> — {d.role}
+                <li key={id} className="bg-[#131f3a]/60 border border-[#22345c]/60 rounded-md px-2.5 py-1.5 text-[12px] text-[#c8d8ef]" style={{ borderLeft: '3px solid ' + color }}>
+                  <b className="text-sim-text">{d.name}</b> <span className="text-sim-muted">— {d.role}</span>
                 </li>
               )
             })}
           </ul>
         </details>
-      </section>
+      </Panel>
 
-      <section className="bg-sim-panel/95 border border-sim-border rounded-2xl p-3.5 shadow-lg">
-        <h2 className="text-[11.5px] uppercase tracking-widest text-sim-accent font-bold mb-2.5">🎯 Objetivos del Cliente</h2>
-        <ul className="flex flex-col gap-1.5">
+      <Panel>
+        <SectionTitle icon="🎯" aside={goalsResults.filter((g) => g.res.ok).length + '/' + goalsResults.length}>
+          Objetivos del cliente
+        </SectionTitle>
+        <ul className="flex flex-col">
           {goalsResults.map((g) => (
-            <li key={g.id} className={'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12.5px] border ' + (g.res.ok ? 'bg-[#0c2417] border-green-900 text-[#c8d8ef]' : 'bg-[#101d38] border-[#1c2f55] text-[#c8d8ef]')}>
-              <span className={g.res.ok ? 'text-green-400 w-4 text-center' : 'text-[#47618a] w-4 text-center'}>{g.res.ok ? '✔' : '○'}</span>
-              <span>{g.label}</span>
+            <li key={g.id} className="flex items-start gap-2.5 py-1.5 border-b border-sim-border/40 last:border-0 text-[12.5px] leading-snug">
+              <span className={'w-4 text-center shrink-0 ' + (g.res.ok ? 'text-green-400' : 'text-[#47618a]')}>{g.res.ok ? '✔' : '○'}</span>
+              <span className={g.res.ok ? 'text-sim-muted' : 'text-[#c8d8ef]'}>{g.label}</span>
             </li>
           ))}
         </ul>
-      </section>
+      </Panel>
 
       {shown.length > 0 && (
-        <section className="bg-sim-panel/95 border border-sim-border rounded-2xl p-3.5 shadow-lg">
-          <h2 className="text-[11.5px] uppercase tracking-widest text-sim-accent font-bold mb-2.5">💡 Pistas</h2>
+        <Panel>
+          <SectionTitle icon="💡" aside={lab.hintsUsed + ' usadas'}>Pistas</SectionTitle>
           <ul className="flex flex-col gap-1.5">
             {shown.map((h, i) => (
-              <li key={i} className="bg-[#241d0c] border border-[#57421a] rounded-lg px-2.5 py-2 text-[12.5px] leading-relaxed text-[#f1dfae]">💡 {i + 1}. {h}</li>
+              <li key={i} className="bg-[#241d0c]/80 border border-[#57421a]/70 rounded-lg px-2.5 py-2 text-[12.5px] leading-relaxed text-[#f1dfae]">
+                <span className="text-amber-400/80 font-bold mr-1">{i + 1}.</span>{h}
+              </li>
             ))}
           </ul>
-        </section>
+        </Panel>
       )}
 
       {lab.sawSolution && (
         <section className="bg-[#1a1035] border border-violet-900 rounded-2xl p-3.5 shadow-lg">
-          <h2 className="text-[11.5px] uppercase tracking-widest text-sim-accent font-bold mb-1">📖 Solución Paso a Paso <span className="ml-auto normal-case text-[10px] border border-sim-border rounded-md px-2 py-0.5 text-sim-muted">−40 pts</span></h2>
+          <SectionTitle icon="📖" aside="−40 pts">Solución paso a paso</SectionTitle>
           <p className="text-[12px] text-[#c3d3ea] leading-relaxed mb-2">
             Ejecuta estos comandos en la consola de cada dispositivo (clic en el diagrama o en su pestaña). Corresponden a ESTE laboratorio:
           </p>
@@ -179,25 +214,33 @@ export default function TicketPanel() {
         </section>
       )}
 
-      <section className="bg-sim-panel/95 border border-sim-border rounded-2xl p-3.5 shadow-lg">
-        <h2 className="text-[11.5px] uppercase tracking-widest text-sim-accent font-bold mb-2.5">📊 Estadísticas</h2>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-[#101d38] border border-[#1c2f55] rounded-lg p-2 text-center"><div className="text-[19px] font-bold text-orange-400">{stats.streak}</div><div className="text-[10px] text-sim-muted uppercase tracking-wider mt-0.5">🔥 Racha</div></div>
-          <div className="bg-[#101d38] border border-[#1c2f55] rounded-lg p-2 text-center"><div className="text-[19px] font-bold text-orange-300">{stats.best}</div><div className="text-[10px] text-sim-muted uppercase tracking-wider mt-0.5">Mejor racha</div></div>
-          <div className="bg-[#101d38] border border-[#1c2f55] rounded-lg p-2 text-center"><div className="text-[19px] font-bold text-green-400">{stats.solved}</div><div className="text-[10px] text-sim-muted uppercase tracking-wider mt-0.5">Resueltos</div></div>
-          <div className="bg-[#101d38] border border-[#1c2f55] rounded-lg p-2 text-center"><div className="text-[19px] font-bold">{stats.bestScore ? stats.bestScore + ' pts' : '—'}</div><div className="text-[10px] text-sim-muted uppercase tracking-wider mt-0.5">Mejor puntaje</div></div>
-        </div>
-        <div className="mt-2 text-[11.5px] text-sim-muted font-mono leading-relaxed">
-          {stats.history.length
-            ? <>{'Últimos laboratorios:'}<br />{stats.history.map((h, i) => <div key={i}>• {h.id} ({h.site}{h.diff ? ' · ' + h.diff : ''}) — {h.score} pts · {h.date}</div>)}</>
-            : 'Aún no resuelves laboratorios. ¡Genera uno y comienza tu racha!'}
-        </div>
-      </section>
+      <Panel>
+        <details className="group">
+          <summary className="flex items-center gap-2 cursor-pointer select-none list-none text-[11px] uppercase tracking-[0.16em] font-bold text-sim-muted [&::-webkit-details-marker]:hidden">
+            <span className="text-sim-accent/70 text-[13px] transition-transform group-open:rotate-90">▸</span>
+            <span>📊 Estadísticas e historial</span>
+          </summary>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[12.5px] text-sim-muted">
+            <span><b className="text-sim-text">{stats.solved}</b> resueltos</span>
+            <span>racha <b className="text-orange-400">{stats.streak}</b></span>
+            <span>mejor racha <b className="text-orange-300">{stats.best}</b></span>
+            <span>mejor puntaje <b className="text-sim-text">{stats.bestScore ? stats.bestScore + ' pts' : '—'}</b></span>
+          </div>
+          <div className="mt-2 text-[11.5px] text-sim-muted/80 font-mono leading-relaxed">
+            {stats.history.length
+              ? stats.history.map((h, i) => <div key={i}>• {h.id} ({h.site}{h.diff ? ' · ' + h.diff : ''}) — {h.score} pts · {h.date}</div>)
+              : 'Aún no resuelves laboratorios. ¡Genera uno y comienza tu racha!'}
+          </div>
+        </details>
+      </Panel>
 
-      <section className="bg-sim-panel/95 border border-sim-border rounded-2xl p-3.5 shadow-lg">
-        <details>
-          <summary className="cursor-pointer text-sim-accent text-[12px] font-semibold select-none">⌨️ Ayuda rápida de comandos IOS</summary>
-          <div className="font-mono text-[11.5px] text-[#a9c1e0] leading-[1.8] mt-2">
+      <Panel>
+        <details className="group">
+          <summary className="flex items-center gap-2 cursor-pointer select-none list-none text-[11px] uppercase tracking-[0.16em] font-bold text-sim-muted [&::-webkit-details-marker]:hidden">
+            <span className="text-sim-accent/70 text-[13px] transition-transform group-open:rotate-90">▸</span>
+            <span>⌨️ Ayuda rápida de comandos IOS</span>
+          </summary>
+          <div className="font-mono text-[11.5px] text-[#a9c1e0] leading-[1.8] mt-3">
             <b>enable</b> → modo privilegiado · <b>configure terminal</b> → config<br />
             <b>interface Gi0/1</b> · <b>no shutdown</b> · <b>shutdown</b><br />
             <b>ip address 10.0.0.1 255.255.255.0</b> (routers/SVI)<br />
@@ -213,7 +256,7 @@ export default function TicketPanel() {
             En PCs: <b>ipconfig</b> · <b>ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt;</b> · <b>ping &lt;ip&gt;</b>
           </div>
         </details>
-      </section>
+      </Panel>
     </aside>
   )
 }
