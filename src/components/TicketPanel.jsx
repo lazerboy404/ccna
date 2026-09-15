@@ -240,6 +240,9 @@ export default function TicketPanel() {
             <b>show ip interface brief</b> · <b>show ip route</b> · <b>show vlan brief</b><br />
             <b>show interfaces trunk</b> · <b>show spanning-tree brief</b> · <b>show ip arp</b><br />
             <b>show interface Gi0/2 switchport</b> · <b>copy running-config startup-config</b><br />
+            <b>enable secret X</b> · <b>line console 0|vty 0 4</b> → <b>password X</b> → <b>login</b> · <b>crypto key generate rsa</b> · <b>transport input ssh</b><br />
+            <b>ntp server 10.0.0.1</b> · <b>ip dhcp pool X</b> → <b>network ...</b> → <b>default-router ...</b><br />
+            <b>show cdp neighbors</b> · <b>show lldp neighbors</b> · <b>show ntp status</b> · <b>show ip dhcp binding</b><br />
             <b>show access-lists</b> · <b>show port-security</b> · <b>show ip protocols</b><br />
             <b>show running-config</b> · <b>ping &lt;ip&gt;</b> · <b>hostname X</b><br />
             En equipos: <b>ipconfig</b> · <b>ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt;</b> · <b>ping &lt;ip&gt;</b><br />

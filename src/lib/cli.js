@@ -14,6 +14,8 @@ export function promptOf(d, sess) {
     case 'if': return d.name + '(config-if)#'
     case 'vlan': return d.name + '(config-vlan)#'
     case 'router': return d.name + '(config-router)#'
+    case 'line': return d.name + '(config-line)#'
+    case 'dhcp': return d.name + '(dhcp-config)#'
     default: return d.name + '>'
   }
 }
@@ -268,6 +270,48 @@ function showNat(lab, d, o) {
   }
 }
 
+const TYPE_NAME = { isp: 'Internet', firewall: 'Firewall', router: 'Router', l3switch: 'Switch L3', l2switch: 'Switch L2', ap: 'Access Point', server: 'Server', camera: 'Camera', wireless: 'Laptop', pc: 'PC' }
+
+function showNtp(lab, d, o) {
+  const srv = d.ntpServers || []
+  o('NTP: ' + (srv.length ? 'cliente' : 'sin servidor configurado'), 'hdr')
+  if (!srv.length) { o('(sin servidores NTP — usa: ntp server <ip>)', 'dim'); return }
+  o(pad('Servidor', 18) + 'Estado', 'hdr')
+  for (const ip of srv) {
+    const reach = Object.values(lab.devices).some((x) => Object.values(x.interfaces).some((i) => i.ip === ip))
+    o(pad(ip, 18) + (reach ? 'sincronizado' : 'inalcanzable (ningún equipo tiene esa IP)'), reach ? 'ok' : 'err')
+  }
+}
+
+function showCdp(lab, d, o, proto) {
+  o('Capability Codes: R - Router, S - Switch, H - Host', 'dim')
+  o(pad('Device ID', 22) + pad('Local Intrfce', 14) + pad('Holdtme', 9) + pad('Capability', 12) + pad('Platform', 12) + 'Port ID', 'hdr')
+  for (const l of lab.links) {
+    let me = null, other = null
+    if (l.a.dev === d.id) { me = l.a; other = l.b } else if (l.b.dev === d.id) { me = l.b; other = l.a }
+    if (!me || !other) continue
+    const od = lab.devices[other.dev]
+    if (!od || od.type === 'isp') continue
+    const cap = od.type === 'router' ? 'R' : isEndpoint(od) ? 'H' : 'S'
+    o(pad(od.name, 22) + pad(isEndpoint(d) ? 'NIC' : (me.port || '-'), 14) + pad('150', 9) + pad(cap, 12) + pad(TYPE_NAME[od.type] || od.type, 12) + (other.port || 'NIC'))
+  }
+  if (proto === 'lldp') o('(LLDP — vecinos de capa 2 mostrados arriba)', 'dim')
+}
+
+function showDhcpBinding(lab, d, o) {
+  const pools = d.dhcpPools || []
+  if (!pools.length) { o('(sin pools DHCP configurados — usa: ip dhcp pool <nombre>)', 'dim'); return }
+  for (const p of pools) o('Pool ' + p.name + '  red ' + (p.network || '?') + ' ' + (p.mask || '') + '  gateway ' + (p.router || '?'), 'hdr')
+  o(pad('IP address', 18) + pad('Client-ID', 20) + pad('Lease', 12) + 'Pool', 'hdr')
+  for (const p of pools) {
+    if (!p.network) continue
+    for (const e of Object.values(lab.devices)) {
+      if (!e.pc) continue
+      if (netOf(e.pc.ip, p.mask || '255.255.255.0') === p.network) o(pad(e.pc.ip, 18) + pad(macOf(e.id), 20) + pad('0d 23h', 12) + p.name)
+    }
+  }
+}
+
 function showRun(lab, d, o) {
   o('!', 'dim')
   o('hostname ' + d.name, 'hdr')
@@ -325,6 +369,19 @@ function showRun(lab, d, o) {
   for (const [aname, entries] of Object.entries(d.acls || {})) {
     for (const e of entries) o('access-list ' + aname + ' ' + e.action + ' ' + (e.proto || 'ip') + ' ' + aclAddrText(e.src) + ' ' + aclAddrText(e.dst))
   }
+  if (d.enableSecret) o('enable secret 5 $1$mERr$xxxxxxxxxxxxxxxx')
+  if (d.svcEncrypt) o('service password-encryption')
+  if (d.domain) o('ip domain-name ' + d.domain)
+  for (const u of d.users || []) o('username ' + u.user + ' secret 5 $1$mERr$xxxxxxxxxxxxxxxx')
+  for (const n of d.ntpServers || []) o('ntp server ' + n)
+  for (const p of d.dhcpPools || []) {
+    o('ip dhcp pool ' + p.name)
+    if (p.network) o(' network ' + p.network + ' ' + p.mask)
+    if (p.router) o(' default-router ' + p.router)
+    if (p.dns) o(' dns-server ' + p.dns)
+  }
+  if (d.consolePass || d.consoleLogin) { o('line console 0'); if (d.consolePass) o(' password 7 0xxxxxxxxxxx'); if (d.consoleLogin) o(' login') }
+  if (d.vtyPass || d.vtyLogin || d.vtyTransport) { o('line vty 0 4'); if (d.vtyPass) o(' password 7 0xxxxxxxxxxx'); if (d.vtyLogin) o(' login'); if (d.vtyTransport) o(' transport input ' + d.vtyTransport) }
   o('!', 'dim')
   o('end', 'dim')
 }
@@ -398,6 +455,10 @@ function showCmd(ctx, d, o, toks) {
   const sub = (toks[1] || '').toLowerCase()
   if (sub === 'ip' && toks[2] === 'interface') return showIpIntBrief(lab, d, o)
   if (sub === 'ip' && toks[2] === 'nat') return showNat(lab, d, o)
+  if (sub === 'ip' && toks[2] === 'dhcp') return showDhcpBinding(lab, d, o)
+  if (sub === 'ntp') return showNtp(lab, d, o)
+  if (sub === 'cdp') return showCdp(lab, d, o, 'cdp')
+  if (sub === 'lldp') return showCdp(lab, d, o, 'lldp')
   if (sub === 'ip' && toks[2] === 'route') return showIpRoute(lab, d, o)
   if (sub === 'ip' && toks[2] === 'protocols') return showIpProtocols(lab, d, o)
   if (sub === 'ip' && toks[2] === 'arp') return showArp(lab, d, o)
@@ -435,7 +496,7 @@ function helpFor(d, c, o) {
   o('Comandos disponibles en modo ' + c.mode + ':', 'hdr')
   if (c.mode === 'user') o('  enable | ping <ip> | show ... | exit')
   if (c.mode === 'priv') o('  configure terminal | disable | ping <ip> | show ... | exit')
-  if (c.mode === 'config') o('  interface <nombre> | vlan <id> | ip route <red> <máscara> <via> | router ospf 1 | access-list <n> <permit|deny> <proto> <origen> <destino> | ssid <nombre> vlan <id> | hostname <X> | no <cmd> ... | end | exit')
+  if (c.mode === 'config') o('  interface <nombre> | vlan <id> | ip route <red> <máscara> <via> | router ospf 1 | access-list <n> <permit|deny> <proto> <origen> <destino> | ssid <nombre> vlan <id> | enable secret <clave> | username <u> secret <clave> | crypto key generate rsa | line console 0|vty 0 4 | ntp server <ip> | ip dhcp pool <nombre> | hostname <X> | no <cmd> ... | end | exit')
   if (c.mode === 'if') o('  ip address <ip> <máscara> | no ip address | shutdown | no shutdown | switchport mode access|trunk | switchport access vlan <id> | switchport trunk allowed vlan <lista|all|add X> | switchport trunk native vlan <id> | switchport trunk encapsulation dot1q | switchport port-security [...] | ip nat inside|outside | ip access-group <acl> <in|out> | spanning-tree portfast [trunk] | description <txt> | end | exit')
   if (c.mode === 'vlan') o('  name <nombre> | exit | end')
   if (c.mode === 'router') o('  network <red> <wildcard> area 0 | no network <red> | exit | end')
@@ -541,7 +602,7 @@ export function execCommand(ctx, devId, line) {
   }
   if (cmd === 'end') { c.mode = 'priv'; c.ifc = null; c.vid = null; recompute(lab); return }
   if (cmd === 'exit') {
-    if (c.mode === 'if' || c.mode === 'vlan' || c.mode === 'router') c.mode = 'config'
+    if (c.mode === 'if' || c.mode === 'vlan' || c.mode === 'router' || c.mode === 'line' || c.mode === 'dhcp') c.mode = 'config'
     else if (c.mode === 'config') c.mode = 'priv'
     c.ifc = null; c.vid = null
     recompute(lab); return
@@ -658,6 +719,40 @@ export function execCommand(ctx, devId, line) {
       else o('% No hay proceso que eliminar.', 'err')
       return
     }
+    if (cmd === 'enable' && toks[1] === 'secret') {
+      if (!toks[2]) { o('% Uso: enable secret <contraseña>', 'err'); recompute(lab); return }
+      d.enableSecret = toks[2]; o('Contraseña de modo privilegiado configurada.', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'service' && toks[1] === 'password-encryption') {
+      d.svcEncrypt = true; o('Cifrado de contraseñas habilitado.', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'ip' && toks[1] === 'domain-name') {
+      if (!toks[2]) { o('% Uso: ip domain-name <nombre>', 'err'); recompute(lab); return }
+      d.domain = toks[2]; recompute(lab); return
+    }
+    if (cmd === 'username') {
+      const u = toks[1], kind = toks[2], p = toks[3]
+      if (!u || (kind !== 'secret' && kind !== 'password') || !p) { o('% Uso: username <usuario> secret <contraseña>', 'err'); recompute(lab); return }
+      d.users = (d.users || []).filter((x) => x.user !== u); d.users.push({ user: u, pass: p }); o('Usuario ' + u + ' configurado.', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'crypto' && toks[1] === 'key' && toks[2] === 'generate' && toks[3] === 'rsa') {
+      d.rsa = true; o('Generando llaves RSA (1024 bits)... [OK]', 'ok'); o('SSH habilitado.', 'dim'); recompute(lab); return
+    }
+    if (cmd === 'line' && (toks[1] === 'console' || toks[1] === 'vty')) {
+      c.mode = 'line'; c.line = toks[1]; recompute(lab); return
+    }
+    if (cmd === 'ntp' && toks[1] === 'server') {
+      if (!validIp(toks[2])) { o('% Uso: ntp server <ip>', 'err'); recompute(lab); return }
+      d.ntpServers = d.ntpServers || []; if (!d.ntpServers.includes(toks[2])) d.ntpServers.push(toks[2])
+      o('Servidor NTP ' + toks[2] + ' configurado.', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'ip' && toks[1] === 'dhcp' && toks[2] === 'pool') {
+      const name = toks[3]
+      if (!name) { o('% Uso: ip dhcp pool <nombre>', 'err'); recompute(lab); return }
+      d.dhcpPools = d.dhcpPools || []
+      if (!d.dhcpPools.some((p) => p.name === name)) d.dhcpPools.push({ name })
+      c.pool = name; c.mode = 'dhcp'; o('Pool DHCP ' + name + ' creado.', 'ok'); recompute(lab); return
+    }
     o("% Invalid input detected at '^' marker.", 'err'); recompute(lab); return
   }
 
@@ -686,6 +781,40 @@ export function execCommand(ctx, devId, line) {
       d.ospf.networks = d.ospf.networks.filter((nw) => nw.net !== toks[2])
       recompute(lab); return
     }
+    o("% Invalid input detected at '^' marker.", 'err'); recompute(lab); return
+  }
+
+  if (c.mode === 'line') {
+    if (cmd === 'password') {
+      const p = toks.slice(1).join(' ')
+      if (!p) { o('% Uso: password <contraseña>', 'err'); recompute(lab); return }
+      if (c.line === 'console') d.consolePass = p; else d.vtyPass = p
+      o('Contraseña configurada en line ' + c.line + '.', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'login') {
+      if (c.line === 'console') d.consoleLogin = true; else d.vtyLogin = true
+      o('Login habilitado en line ' + c.line + '.', 'ok'); recompute(lab); return
+    }
+    if (cmd === 'transport' && toks[1] === 'input') {
+      d.vtyTransport = toks.slice(2).join(' ') || 'ssh'
+      o('Transport input: ' + d.vtyTransport + '.', 'ok'); recompute(lab); return
+    }
+    o("% Invalid input detected at '^' marker.", 'err'); recompute(lab); return
+  }
+
+  if (c.mode === 'dhcp') {
+    const pool = (d.dhcpPools || []).find((p) => p.name === c.pool)
+    if (!pool) { c.mode = 'config'; recompute(lab); return }
+    if (cmd === 'network') {
+      if (!validIp(toks[1]) || !validIp(toks[2])) { o('% Uso: network <red> <máscara>', 'err'); recompute(lab); return }
+      pool.network = toks[1]; pool.mask = toks[2]; o('Red del pool: ' + toks[1] + ' ' + toks[2], 'ok'); recompute(lab); return
+    }
+    if (cmd === 'default-router') {
+      if (!validIp(toks[1])) { o('% Uso: default-router <ip>', 'err'); recompute(lab); return }
+      pool.router = toks[1]; o('Puerta de enlace del pool: ' + toks[1], 'ok'); recompute(lab); return
+    }
+    if (cmd === 'dns-server') { pool.dns = toks[1]; o('DNS del pool: ' + toks[1], 'ok'); recompute(lab); return }
+    if (cmd === 'exit') { c.mode = 'config'; recompute(lab); return }
     o("% Invalid input detected at '^' marker.", 'err'); recompute(lab); return
   }
 

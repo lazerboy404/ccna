@@ -11,8 +11,10 @@ function buildLabFor(sc, seed) {
   const faults = scenarioFaults(spec, sc)
   const devices = buildDevices(spec)
   const links = buildLinks(spec)
-  faults.forEach((f) => f.apply(devices, links))
-  const lab = { spec, scenario: sc, devices, links, faults, goals: buildGoals(spec), hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null }
+  faults.forEach((f) => { if (f.apply) f.apply(devices, links) })
+  let goals = buildGoals(spec)
+  if (sc.extraGoals) goals = goals.concat(sc.extraGoals(spec))
+  const lab = { spec, scenario: sc, devices, links, faults, goals, hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null }
   recompute(lab)
   return lab
 }
@@ -159,6 +161,28 @@ test('NAT: inside/outside mal aplicadas rompe Internet y se corrige', () => {
   assert.ok(ctx.sessions.R1.out.some((e) => /outside/.test(e.t)), 'show ip nat translations debe mostrar las interfaces')
   solve(lab)
   assert.deepEqual(evaluateGoals(lab).filter((g) => !g.res.ok).map((g) => g.label), [])
+})
+
+test('ejercicios de configuración (200-301): acceso/SSH, NTP y DHCP', () => {
+  for (const key of ['i-acceso-seguro', 'i-ntp', 'i-dhcp']) {
+    const sc = SCENARIOS.find((s) => s.key === key)
+    const lab = buildLabFor(sc, 777)
+    assert.ok(evaluateGoals(lab).some((g) => !g.res.ok), key + ': debe empezar con tareas pendientes')
+    solve(lab)
+    assert.deepEqual(evaluateGoals(lab).filter((g) => !g.res.ok).map((g) => g.label), [], key + ': quedó algo sin resolver')
+  }
+})
+
+test('CLI: show cdp/lldp neighbors, show ntp y show ip dhcp binding', () => {
+  const lab = plainLab(600)
+  const ctx = lab.ctx || (lab.ctx = { lab, sessions: {} })
+  run(lab, 'SW1', ['show cdp neighbors'])
+  assert.ok(ctx.sessions.SW1.out.some((e) => /R1|Router/.test(e.t)), 'show cdp neighbors debe listar vecinos')
+  run(lab, 'R1', ['enable', 'configure terminal', 'ntp server 10.0.0.1', 'ip dhcp pool TEST', 'network 10.0.0.0 255.255.255.0', 'default-router 10.0.0.1', 'exit', 'end'])
+  run(lab, 'R1', ['show ntp status'])
+  assert.ok(ctx.sessions.R1.out.some((e) => /10\.0\.0\.1/.test(e.t)), 'show ntp debe listar el servidor')
+  run(lab, 'R1', ['show ip dhcp binding'])
+  assert.ok(ctx.sessions.R1.out.some((e) => /TEST/.test(e.t)), 'show ip dhcp binding debe listar el pool')
 })
 
 test('CLI: show access-lists y show port-security no fallan', () => {

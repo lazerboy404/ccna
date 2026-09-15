@@ -84,6 +84,48 @@ export const SCENARIOS = [
     story: s => '«Dos reportes: la cámara de la entrada no graba (parece que trozaron el cable) y una computadora de Ventas no abre internet. Lo demás funciona.» — Mesa de ayuda' },
   { key: 'a-srv-fuera', diff: 'Avanzado', srv: true, title: 'Servidor y computadora', design: null, sw3: null, faultKeys: ['srv-offsubnet', 'pc-wrong-gw'],
     story: s => '«Después de mover equipo, el servidor quedó inalcanzable y una computadora de Ventas no abre internet. El resto trabaja bien.» — Gerencia' },
+  { key: 'i-acceso-seguro', diff: 'Intermedio', title: 'Asegurar el acceso', design: null, sw3: null, faultKeys: [],
+    story: s => '«Sistemas pide proteger el router principal: que exija contraseñas y que solo se pueda administrar de forma remota con SSH.» — TI',
+    task: {
+      key: 'task-access', title: 'Proteger el acceso al router', category: 'Seguridad (acceso al dispositivo)',
+      hints: ['Protege el modo privilegiado con enable secret y la consola/VTY con password + login.',
+        'Para SSH necesitas ip domain-name, generar llaves RSA (crypto key generate rsa) y transport input ssh en line vty.'],
+      solution: [{ devId: 'R1', cmds: ['enable', 'configure terminal', 'enable secret cisco1', 'service password-encryption', 'ip domain-name corp.local', 'username admin secret cisco2', 'crypto key generate rsa', 'line console 0', 'password cisco2', 'login', 'exit', 'line vty 0 4', 'password cisco3', 'login', 'transport input ssh', 'end'] }],
+    },
+    extraGoals: (s) => [
+      { id: 'x-enable', label: 'Contraseña de modo privilegiado (enable secret)', check: (l) => l.devices.R1.enableSecret ? true : { ok: false, reason: 'Configura: enable secret <clave>' } },
+      { id: 'x-console', label: 'Contraseña en la consola (console 0)', check: (l) => l.devices.R1.consolePass ? true : { ok: false, reason: 'line console 0 → password <clave> → login' } },
+      { id: 'x-vty', label: 'Contraseña en las líneas VTY', check: (l) => l.devices.R1.vtyPass ? true : { ok: false, reason: 'line vty 0 4 → password <clave> → login' } },
+      { id: 'x-ssh', label: 'Administración remota solo por SSH', check: (l) => { const r = l.devices.R1; return (r.rsa && r.vtyTransport && /ssh/.test(r.vtyTransport)) ? true : { ok: false, reason: 'crypto key generate rsa y line vty 0 4 → transport input ssh' } } },
+    ] },
+  { key: 'i-ntp', diff: 'Intermedio', title: 'Relojes desincronizados', design: null, sw3: null, faultKeys: [],
+    story: s => '«Los registros del switch principal tienen una hora distinta a la de los demás equipos; quieren que se sincronice con el router central.» — Soporte',
+    task: (s) => ({
+      key: 'task-ntp', title: 'Sincronizar el reloj del switch', category: 'Servicios IP (NTP)',
+      hints: ['El switch debe tomar la hora de un servidor NTP; el router central puede serlo.',
+        'En ' + s.names.sw1 + ': ntp server ' + s.nets.transit.r1 + '.'],
+      solution: [{ devId: 'SW1', cmds: ['enable', 'configure terminal', 'ntp server ' + s.nets.transit.r1, 'end'] }],
+    }),
+    extraGoals: (s) => [
+      { id: 'x-ntp', label: 'El switch sincroniza su reloj con ' + s.names.r1 + ' (' + s.nets.transit.r1 + ')', check: (l) => {
+        const n = l.devices.SW1.ntpServers || []
+        return n.includes(s.nets.transit.r1) ? true : { ok: false, reason: 'En ' + s.names.sw1 + ': ntp server ' + s.nets.transit.r1 }
+      } },
+    ] },
+  { key: 'i-dhcp', diff: 'Intermedio', title: 'Direcciones automáticas', design: null, sw3: null, faultKeys: [],
+    story: s => '«Quieren que las computadoras de Ventas tomen su dirección de red automáticamente. Prepara el servicio en el router principal.» — TI',
+    task: (s) => ({
+      key: 'task-dhcp', title: 'Configurar el servicio DHCP', category: 'Servicios IP (DHCP)',
+      hints: ['Crea un pool DHCP en ' + s.names.r1 + ' para la red de Ventas.',
+        'Comandos: ip dhcp pool VENTAS → network ' + s.nets.ventas.net + ' 255.255.255.0 → default-router ' + s.nets.ventas.gw + '.'],
+      solution: [{ devId: 'R1', cmds: ['enable', 'configure terminal', 'ip dhcp pool VENTAS', 'network ' + s.nets.ventas.net + ' 255.255.255.0', 'default-router ' + s.nets.ventas.gw, 'exit', 'end'] }],
+    }),
+    extraGoals: (s) => [
+      { id: 'x-dhcp', label: 'Pool DHCP para Ventas (' + s.nets.ventas.net + '/24, gw ' + s.nets.ventas.gw + ')', check: (l) => {
+        const p = (l.devices.R1.dhcpPools || []).find((x) => x.network === s.nets.ventas.net && x.router === s.nets.ventas.gw)
+        return p ? true : { ok: false, reason: 'En ' + s.names.r1 + ': ip dhcp pool VENTAS → network ' + s.nets.ventas.net + ' 255.255.255.0 → default-router ' + s.nets.ventas.gw }
+      } },
+    ] },
   { key: 'sorpresa', diff: 'Mixto', title: 'Incidente sin clasificar', design: null, sw3: null, faultKeys: null,
     story: s => '«La red no sirve bien. Hay varios reportes sueltos y nadie sabe por dónde empezar. Revísalo tú, por favor.» — Mesa de ayuda' },
 ]
@@ -552,11 +594,15 @@ export function chooseFaults(s) {
 }
 
 export function scenarioFaults(spec, sc) {
+  let out
   if (sc && sc.faultKeys) {
     const rnd = mulberry32((spec.seed >>> 0) ^ 0x5bf03635)
     const pool = makeFaults(spec, rnd)
     const faults = sc.faultKeys.map((k) => pool.find((f) => f.key === k)).filter(Boolean)
-    if (faults.length === sc.faultKeys.length) return faults
+    out = (faults.length === sc.faultKeys.length) ? faults : chooseFaults(spec)
+  } else {
+    out = chooseFaults(spec)
   }
-  return chooseFaults(spec)
+  if (sc && sc.task) out = out.concat([typeof sc.task === 'function' ? sc.task(spec) : sc.task])
+  return out
 }

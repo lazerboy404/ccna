@@ -29,8 +29,10 @@ export function buildLab(seed, pref) {
   const faults = scenarioFaults(spec, sc)
   const devices = buildDevices(spec)
   const links = buildLinks(spec)
-  faults.forEach((f) => f.apply(devices, links))
-  const lab = { spec, scenario: sc, devices, links, faults, goals: buildGoals(spec), hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null }
+  faults.forEach((f) => { if (f.apply) f.apply(devices, links) })
+  let goals = buildGoals(spec)
+  if (sc.extraGoals) goals = goals.concat(sc.extraGoals(spec))
+  const lab = { spec, scenario: sc, devices, links, faults, goals, hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null }
   lab.order = TOPO_ORDER.filter((id) => !!devices[id]).concat(Object.keys(devices).filter((id) => !TOPO_ORDER.includes(id)))
   lab.positions = positionsFor(spec)
   recompute(lab)
@@ -113,7 +115,7 @@ export function NetworkProvider({ children }) {
     }
     const devices = buildDevices(lab.spec)
     const links = buildLinks(lab.spec)
-    lab.faults.forEach((f) => f.apply(devices, links))
+    lab.faults.forEach((f) => { if (f.apply) f.apply(devices, links) })
     lab.devices = devices
     lab.links = links
     lab.solved = false
