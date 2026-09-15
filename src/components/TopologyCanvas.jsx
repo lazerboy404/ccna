@@ -65,6 +65,22 @@ function LinkTag({ x, y, children }) {
   )
 }
 
+const plateWOf = (d) => Math.max(d.name.length * 6.8, (d.type === 'pc' ? d.pc.ip : typeLabel(d.type)).length * 5.8) + 14
+
+function portLabelAt(P, Q, dev, port) {
+  const dx = Q.x - P.x, dy = Q.y - P.y
+  const len = Math.hypot(dx, dy) || 1
+  const ux = dx / len, uy = dy / len
+  const nx = -uy, ny = ux
+  const half = plateWOf(dev) / 2 + 8
+  const inPlate = (x, y) => x > P.x - half && x < P.x + half && y > P.y + 20 && y < P.y + 60
+  let d = 70
+  let x = P.x + ux * d + nx * 9
+  let y = P.y + uy * d + ny * 9
+  if (inPlate(x, y)) { d = 112; x = P.x + ux * d + nx * 9; y = P.y + uy * d + ny * 9 }
+  return { x, y, text: port }
+}
+
 export default function TopologyCanvas() {
   const { lab, active, setActive, cabling, connect } = useNetwork()
   const [posMap, setPosMap] = useState(() => Object.assign({}, lab.positions))
@@ -144,6 +160,13 @@ export default function TopologyCanvas() {
 
   const portsForPopup = () => (popup ? freePorts(lab, popup.dev) : [])
   const srcDev = src ? lab.devices[src.dev] : null
+  const portLabels = []
+  for (const l of lab.links) {
+    const pa = posMap[l.a.dev], pb = posMap[l.b.dev]
+    if (!pa || !pb) continue
+    if (l.a.port) portLabels.push(portLabelAt(pa, pb, lab.devices[l.a.dev], l.a.port))
+    if (l.b.port) portLabels.push(portLabelAt(pb, pa, lab.devices[l.b.dev], l.b.port))
+  }
 
   return (
     <div ref={wrapRef} className="relative bg-sim-panel border border-sim-border rounded-2xl p-2 shadow-lg">
@@ -178,8 +201,6 @@ export default function TopologyCanvas() {
                 <title>{dA.name + ' (' + (l.a.port || 'NIC') + ') ↔ ' + dB.name + ' (' + (l.b.port || 'NIC') + ')\n' + l.label + ' — ' + detail}</title>
               </line>
               <text x={(pa.x + pb.x) / 2} y={(pa.y + pb.y) / 2 - 6} className="portlabel" fontSize="9" textAnchor="middle" fill="#8fb0d4" stroke="#070d1a" strokeWidth="2.6" strokeLinejoin="round" style={{ paintOrder: 'stroke' }}>{l.label}</text>
-              {l.a.port && <LinkTag x={pa.x + (pb.x - pa.x) * 0.26} y={pa.y + (pb.y - pa.y) * 0.26 + 11}>{l.a.port}</LinkTag>}
-              {l.b.port && <LinkTag x={pa.x + (pb.x - pa.x) * 0.74} y={pa.y + (pb.y - pa.y) * 0.74 + 11}>{l.b.port}</LinkTag>}
             </g>
           )
         })}
@@ -190,7 +211,7 @@ export default function TopologyCanvas() {
           const h = deviceHealth(lab, id)
           const sub = d.type === 'pc' ? d.pc.ip : typeLabel(d.type)
           const isSrc = src && src.dev === id
-          const plateW = Math.max(d.name.length * 6.8, sub.length * 5.8) + 14
+          const plateW = plateWOf(d)
           return (
             <g key={id}
               className={'devg' + (active === id ? ' active' : '') + (cabling ? ' movable' : '')}
@@ -209,6 +230,7 @@ export default function TopologyCanvas() {
             </g>
           )
         })}
+        {portLabels.map((p, i) => <LinkTag key={'pl' + i} x={p.x} y={p.y}>{p.text}</LinkTag>)}
       </svg>
 
       {popup && (() => {
