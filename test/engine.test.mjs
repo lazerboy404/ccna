@@ -2,8 +2,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { INTERNET } from '../src/lib/utils.js'
-import { SCENARIOS, generateSpec, buildDevices, buildLinks, buildGoals, scenarioFaults } from '../src/lib/labGenerator.js'
-import { recompute, evaluateGoals, pingSim, simRequest, linkBlocked } from '../src/lib/engine.js'
+import { SCENARIOS, generateSpec, buildDevices, buildLinks, buildGoals, scenarioFaults, TOPO_ORDER } from '../src/lib/labGenerator.js'
+import { generateConstructionLab } from '../src/lib/buildGenerator.js'
+import { recompute, evaluateGoals, pingSim, simRequest, linkBlocked, positionsFor } from '../src/lib/engine.js'
 import { execCommand } from '../src/lib/cli.js'
 
 function buildLabFor(sc, seed) {
@@ -16,6 +17,8 @@ function buildLabFor(sc, seed) {
   let goals = buildGoals(spec)
   if (sc.extraGoals) goals = goals.concat(sc.extraGoals(spec))
   const lab = { spec, scenario: sc, devices, links, faults, goals, hintsUsed: 0, sawSolution: false, solved: false, attempted: false, eng: null }
+  lab.order = TOPO_ORDER.filter((id) => !!devices[id]).concat(Object.keys(devices).filter((id) => !TOPO_ORDER.includes(id)))
+  lab.positions = positionsFor(spec)
   recompute(lab)
   return lab
 }
@@ -242,6 +245,28 @@ test('pingSim devuelve el trayecto (hops) para animar el ping', () => {
   assert.ok(r.hops.includes('SW1') && r.hops.includes('R1'), 'el trayecto debe pasar por SW1 y R1')
   const r2 = pingSim(lab, 'PC1', lab.spec.nets.admin.gw)
   assert.ok(r2.hops.includes('SW1'))
+})
+
+test('posiciones: ningún equipo ni placa se encima ni sale del lienzo', () => {
+  const TL = { isp: 'Internet', firewall: 'Firewall', router: 'Router', l3switch: 'Switch L3', l2switch: 'Switch L2', ap: 'Access Point', server: 'Servidor', camera: 'Cámara IP', wireless: 'Cliente WiFi', pc: 'PC' }
+  const plateW = (d) => Math.max(d.name.length * 6.8, (d.pc ? d.pc.ip : (TL[d.type] || 'PC')).length * 5.8) + 14
+  for (const sc of SCENARIOS) {
+    for (const seed of [1, 42, 777, 424242, 3140732973]) {
+      const lab = sc.build ? generateConstructionLab(seed, sc) : buildLabFor(sc, seed)
+      const vb = (lab.viewBox || '0 0 960 540').split(' ')
+      const W = +vb[2] || 960, H = +vb[3] || 540
+      const list = lab.order.map((id) => ({ d: lab.devices[id], p: lab.positions[id], w: plateW(lab.devices[id]) }))
+      for (const e of list) {
+        assert.ok(e.p.x - e.w / 2 >= 0 && e.p.x + e.w / 2 <= W, sc.key + ' seed ' + seed + ': ' + e.d.name + ' sale del lienzo (x)')
+        assert.ok(e.p.y - 28 >= 0 && e.p.y + 58 <= H, sc.key + ' seed ' + seed + ': ' + e.d.name + ' sale del lienzo (y)')
+      }
+      for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j]
+        const ov = Math.abs(a.p.x - b.p.x) < (a.w + b.w) / 2 && Math.abs(a.p.y - b.p.y) < 78
+        assert.equal(ov, false, sc.key + ' seed ' + seed + ': ' + a.d.name + ' y ' + b.d.name + ' se enciman')
+      }
+    }
+  }
 })
 
 test('CLI: show access-lists y show port-security no fallan', () => {

@@ -521,9 +521,9 @@ export function positionsFor(spec) {
     PC1: { x: 300, y: 452 }, PC2: { x: 625, y: 452 }, PC3: { x: 810, y: 452 },
   }
   if (!spec.topo.fw) P.ISP = { x: 200, y: 80 }
-  if (spec.topo.sw3) { P.SW3 = { x: 880, y: 140 }; P.PC4 = { x: 880, y: 345 } }
+  if (spec.topo.sw3) { P.SW3 = { x: 860, y: 140 }; P.PC4 = { x: 860, y: 345 } }
   if (spec.topo.srv) P.SRV1 = { x: 610, y: 135 }
-  if (spec.topo.cam) P.CAM1 = { x: 775, y: 95 }
+  if (spec.topo.cam) P.CAM1 = { x: 720, y: 95 }
   return P
 }
 

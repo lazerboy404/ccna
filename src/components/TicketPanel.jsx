@@ -143,7 +143,7 @@ export default function TicketPanel() {
         <ul className="flex flex-col">
           {goalsResults.map((g) => (
             <li key={g.id} className="flex items-start gap-2.5 py-1.5 border-b border-sim-border/40 last:border-0 text-[12.5px] leading-snug">
-              <span className={'w-4 text-center shrink-0 ' + (g.res.ok ? 'text-green-400' : 'text-[#47618a]')}>{g.res.ok ? '✔' : '○'}</span>
+              <span className={'w-4 text-center shrink-0 ' + (g.res.ok ? 'text-green-400' : 'text-[#6b86ad]')}>{g.res.ok ? '✔' : '○'}</span>
               <span className={g.res.ok ? 'text-sim-muted' : 'text-[#c8d8ef]'}>{g.label}</span>
             </li>
           ))}

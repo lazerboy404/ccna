@@ -11,6 +11,10 @@ body {
   overflow-x: hidden;
 }
 button { font-family: inherit; cursor: pointer; }
+header button, header select { white-space: nowrap; }
+button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible {
+  outline: 2px solid #22d3ee; outline-offset: 2px; border-radius: 6px;
+}
 
 /* Lienzo de topología */
 .topo-bg { background: radial-gradient(900px 480px at 50% 20%, #0c1a33 0%, #08101f 70%); }

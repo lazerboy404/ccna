@@ -84,7 +84,7 @@ export default function TerminalCLI() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-[#41597c] text-[13px] text-center leading-relaxed">
+          <div className="flex-1 flex items-center justify-center text-[#6b86ad] text-[13px] text-center leading-relaxed">
             🔌 Haz clic en un dispositivo del diagrama (o en una pestaña)<br />para conectar su cable de consola y abrir la CLI de Cisco IOS.
           </div>
         )}

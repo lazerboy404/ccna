@@ -142,28 +142,52 @@ export default function TopologyCanvas() {
   const svgRef = useRef(null)
   const wrapRef = useRef(null)
   const dragRef = useRef(null)
+  const basePos = useRef({})
 
-  useEffect(() => { setPosMap(Object.assign({}, lab.positions)); setSrc(null); setPopup(null) }, [lab])
+  useEffect(() => {
+    const base = Object.assign({}, lab.positions)
+    basePos.current = base
+    setPosMap(Object.assign({}, base))
+    setSrc(null)
+    setPopup(null)
+  }, [lab])
   useEffect(() => { if (!cabling) { setSrc(null); setPopup(null) } }, [cabling])
 
   const order = lab.order || Object.keys(lab.devices)
+  const canvasH = () => { const v = (lab.viewBox || '0 0 960 540').split(' '); return +v[3] || 540 }
   const scale = () => { const el = svgRef.current; return el ? el.getBoundingClientRect().width / 960 : 1 }
-  const toLocal = (cx, cy) => { const r = svgRef.current.getBoundingClientRect(); const s = r.width / 960; return { x: (cx - r.left) / s, y: (cy - r.top) / s } }
 
-  const openPopup = (devId) => {
-    const wrap = wrapRef.current.getBoundingClientRect()
-    const r = svgRef.current.getBoundingClientRect()
+  // Geometría de enlaces: separa cables paralelos (p. ej. EtherChannel) para que no se encimen.
+  const pairKey = (l) => [l.a.dev, l.b.dev].sort().join('|')
+  const groups = {}
+  for (const l of lab.links) { const k = pairKey(l); (groups[k] || (groups[k] = [])).push(l) }
+  const geom = {}
+  for (const arr of Object.values(groups)) {
+    arr.forEach((l, idx) => {
+      const pa = posMap[l.a.dev], pb = posMap[l.b.dev]
+      if (!pa || !pb) return
+      const dx = pb.x - pa.x, dy = pb.y - pa.y, len = Math.hypot(dx, dy) || 1
+      const off = arr.length > 1 ? (idx - (arr.length - 1) / 2) * 20 : 0
+      const nx = (-dy / len) * off, ny = (dx / len) * off
+      geom[l.id] = { a: { x: pa.x + nx, y: pa.y + ny }, b: { x: pb.x + nx, y: pb.y + ny } }
+    })
+  }
+
+  const popupPos = (devId) => {
+    const wrap = wrapRef.current, svg = svgRef.current
+    if (!wrap || !svg) return { left: 0, top: 0 }
+    const wr = wrap.getBoundingClientRect(), r = svg.getBoundingClientRect()
     const s = r.width / 960
-    const p = posMap[devId]
-    const left = Math.max(4, Math.min((r.left - wrap.left) + p.x * s + 44, wrap.width - 236))
-    const top = Math.max(4, Math.min((r.top - wrap.top) + p.y * s - 8, wrap.height - 40))
-    setPopup({ dev: devId, left, top })
+    const p = posMap[devId] || { x: 0, y: 0 }
+    const left = Math.max(4, Math.min((r.left - wr.left) + p.x * s + 44, wr.width - 240))
+    const top = Math.max(4, Math.min((r.top - wr.top) + p.y * s - 8, wr.height - 252))
+    return { left, top }
   }
 
   const handleClick = (devId) => {
     if (!cabling) { setActive(devId); return }
     if (lab.devices[devId].type === 'isp') return
-    openPopup(devId)
+    setPopup({ dev: devId })
   }
 
   const onPointerDown = (devId, e) => {
@@ -178,9 +202,14 @@ export default function TopologyCanvas() {
     if (!d) return
     if (Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) > 4) d.moved = true
     const s = scale()
-    setPosMap((m) => Object.assign({}, m, { [d.id]: { x: d.ox + (e.clientX - d.sx) / s, y: d.oy + (e.clientY - d.sy) / s } }))
+    const halfW = plateWOf(lab.devices[d.id]) / 2 + 4
+    let nx = d.ox + (e.clientX - d.sx) / s
+    let ny = d.oy + (e.clientY - d.sy) / s
+    nx = Math.max(halfW, Math.min(960 - halfW, nx))
+    ny = Math.max(40, Math.min(canvasH() - 62, ny))
+    setPosMap((m) => Object.assign({}, m, { [d.id]: { x: nx, y: ny } }))
   }
-  const onPointerUp = (e) => {
+  const onPointerUp = () => {
     const d = dragRef.current
     dragRef.current = null
     if (!d) return
@@ -210,15 +239,24 @@ export default function TopologyCanvas() {
     if (connect(src, { dev: devId, port }, cableType)) { setSrc(null); setPopup(null) }
   }
 
+  const arrange = () => { setPosMap(Object.assign({}, basePos.current)); lab.positions = Object.assign({}, basePos.current) }
+
   const portsForPopup = () => (popup ? freePorts(lab, popup.dev) : [])
   const srcDev = src ? lab.devices[src.dev] : null
-  const portLabels = []
+
+  const midLabels = []
+  const rawPort = []
   for (const l of lab.links) {
-    const pa = posMap[l.a.dev], pb = posMap[l.b.dev]
-    if (!pa || !pb) continue
-    if (l.a.port) portLabels.push(portLabelAt(pa, pb, lab.devices[l.a.dev], l.a.port))
-    if (l.b.port) portLabels.push(portLabelAt(pb, pa, lab.devices[l.b.dev], l.b.port))
+    const g = geom[l.id]
+    if (!g) continue
+    midLabels.push({ x: (g.a.x + g.b.x) / 2, y: (g.a.y + g.b.y) / 2 - 6, text: l.label })
+    if (l.a.port) { const p = portLabelAt(g.a, g.b, lab.devices[l.a.dev], l.a.port); rawPort.push({ dev: l.a.dev, ...p }) }
+    if (l.b.port) { const p = portLabelAt(g.b, g.a, lab.devices[l.b.dev], l.b.port); rawPort.push({ dev: l.b.dev, ...p }) }
   }
+  const byDev = {}
+  rawPort.forEach((p) => (byDev[p.dev] || (byDev[p.dev] = [])).push(p))
+  const portLabels = []
+  for (const arr of Object.values(byDev)) arr.forEach((p, i) => portLabels.push({ x: p.x, y: p.y + (i - (arr.length - 1) / 2) * 11, text: p.text }))
 
   return (
     <div ref={wrapRef} className="relative bg-sim-panel border border-sim-border rounded-2xl p-2 shadow-lg">
@@ -239,8 +277,9 @@ export default function TopologyCanvas() {
       )}
       <svg ref={svgRef} id="topo" viewBox={lab.viewBox || '0 0 960 540'} className="w-full h-auto block rounded-xl topo-bg" onClick={() => setPopup(null)}>
         {lab.links.map((l) => {
-          const pa = posMap[l.a.dev], pb = posMap[l.b.dev]
-          if (!pa || !pb) return null
+          const g = geom[l.id]
+          if (!g) return null
+          const pa = g.a, pb = g.b
           const state = linkState(lab, l)
           const dA = lab.devices[l.a.dev], dB = lab.devices[l.b.dev]
           const detail = state === 'down' ? 'CAÍDO — revisa shutdown/enlace físico'
@@ -281,7 +320,6 @@ export default function TopologyCanvas() {
                   <title>Clic para retirar/reemplazar este cable</title>
                 </line>
               )}
-              <text x={(pa.x + pb.x) / 2} y={(pa.y + pb.y) / 2 - 6} className="portlabel" fontSize="9" textAnchor="middle" fill="#8fb0d4" stroke="#070d1a" strokeWidth="2.6" strokeLinejoin="round" style={{ paintOrder: 'stroke' }}>{l.label}</text>
             </g>
           )
         })}
@@ -311,6 +349,7 @@ export default function TopologyCanvas() {
             </g>
           )
         })}
+        {midLabels.map((p, i) => <LinkTag key={'ml' + i} x={p.x} y={p.y}>{p.text}</LinkTag>)}
         {portLabels.map((p, i) => <LinkTag key={'pl' + i} x={p.x} y={p.y}>{p.text}</LinkTag>)}
       </svg>
 
@@ -318,8 +357,9 @@ export default function TopologyCanvas() {
         const dev = lab.devices[popup.dev]
         const ports = portsForPopup()
         const compatible = !src || src.dev === popup.dev || pairCompatible(src.dev, popup.dev)
+        const pos = popupPos(popup.dev)
         return (
-          <div className="absolute z-30 w-[228px] rounded-xl border border-[#2a4a7a] bg-[#0c1730f7] shadow-2xl text-[12px]" style={{ left: popup.left, top: popup.top }}>
+          <div className="absolute z-30 w-[228px] rounded-xl border border-[#2a4a7a] bg-[#0c1730f7] shadow-2xl text-[12px]" style={{ left: pos.left, top: pos.top }}>
             <div className="flex items-center justify-between px-3 py-2 border-b border-[#1d3054]">
               <span className="font-semibold text-sim-text">{dev.name} <span className="text-sim-muted font-normal">· puertos libres</span></span>
               <button onClick={() => { setPopup(null); setSrc(null) }} className="text-sim-muted hover:text-sim-text">✕</button>
@@ -345,14 +385,15 @@ export default function TopologyCanvas() {
         )
       })()}
 
-      <div className="flex flex-wrap gap-4 px-2 pt-2 pb-1 text-sim-muted text-xs">
-        <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#22c55e' }} /> Up/Up (verde)</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#ef4444' }} /> Down / shutdown / falla (rojo)</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#f59e0b' }} /> STP, VLAN mismatch o cable dañado (naranja)</span>
-        <span className="ml-auto">{cabling ? '🔌 Clic en un equipo para cablear · clic en un cable para retirarlo' : 'Clic = consola · Arrastra los equipos para acomodarlos'}</span>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 items-center px-2 pt-2 pb-1 text-sim-muted text-xs">
+        <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#22c55e' }} /> Up/Up</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#ef4444' }} /> Down / cable dañado</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#f59e0b' }} /> STP / VLAN mismatch</span>
+        <span className="hidden sm:inline">{cabling ? '🔌 Clic en un equipo para cablear · clic en un cable para retirarlo' : 'Clic = consola · Arrastra para mover'}</span>
+        <button onClick={arrange} className="rounded-md border border-sim-border bg-[#12213d] px-2 py-0.5 text-[11px] font-semibold hover:brightness-125" title="Repone los equipos a su posición inicial">🧹 Acomodar</button>
         <button onClick={() => setAnim((a) => !a)}
           className={'rounded-md border px-2 py-0.5 text-[11px] font-semibold ' + (anim ? 'border-cyan-800 bg-[#0d2b3a] text-cyan-200' : 'border-sim-border bg-[#12213d] text-sim-muted')}>
-          🎞 Animación: {anim ? 'on' : 'off'}
+          🎞 Animación: {anim ? 'activada' : 'desactivada'}
         </button>
       </div>
     </div>
