@@ -57,6 +57,14 @@ function Icon({ type }) {
 const LED_COLOR = { ok: '#22c55e', warn: '#f59e0b', down: '#ef4444' }
 const LINK_CLASS = { ok: 'lk-ok', down: 'lk-down', stp: 'lk-stp', mis: 'lk-mis' }
 
+function LinkTag({ x, y, children }) {
+  return (
+    <text x={x} y={y} className="portlabel" fontSize="9" textAnchor="middle" fill="#8fb0d4" stroke="#070d1a" strokeWidth="2.6" strokeLinejoin="round" style={{ paintOrder: 'stroke' }}>
+      {children}
+    </text>
+  )
+}
+
 export default function TopologyCanvas() {
   const { lab, active, setActive, cabling, connect } = useNetwork()
   const [posMap, setPosMap] = useState(() => Object.assign({}, lab.positions))
@@ -169,9 +177,9 @@ export default function TopologyCanvas() {
               <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} className={'link ' + LINK_CLASS[state]}>
                 <title>{dA.name + ' (' + (l.a.port || 'NIC') + ') ↔ ' + dB.name + ' (' + (l.b.port || 'NIC') + ')\n' + l.label + ' — ' + detail}</title>
               </line>
-              <text x={(pa.x + pb.x) / 2} y={(pa.y + pb.y) / 2 - 6} className="portlabel" fontSize="9" textAnchor="middle" fill="#54708f">{l.label}</text>
-              {l.a.port && <text x={pa.x + (pb.x - pa.x) * 0.26} y={pa.y + (pb.y - pa.y) * 0.26 + 11} className="portlabel" fontSize="9" textAnchor="middle" fill="#54708f">{l.a.port}</text>}
-              {l.b.port && <text x={pa.x + (pb.x - pa.x) * 0.74} y={pa.y + (pb.y - pa.y) * 0.74 + 11} className="portlabel" fontSize="9" textAnchor="middle" fill="#54708f">{l.b.port}</text>}
+              <text x={(pa.x + pb.x) / 2} y={(pa.y + pb.y) / 2 - 6} className="portlabel" fontSize="9" textAnchor="middle" fill="#8fb0d4" stroke="#070d1a" strokeWidth="2.6" strokeLinejoin="round" style={{ paintOrder: 'stroke' }}>{l.label}</text>
+              {l.a.port && <LinkTag x={pa.x + (pb.x - pa.x) * 0.26} y={pa.y + (pb.y - pa.y) * 0.26 + 11}>{l.a.port}</LinkTag>}
+              {l.b.port && <LinkTag x={pa.x + (pb.x - pa.x) * 0.74} y={pa.y + (pb.y - pa.y) * 0.74 + 11}>{l.b.port}</LinkTag>}
             </g>
           )
         })}
@@ -182,6 +190,7 @@ export default function TopologyCanvas() {
           const h = deviceHealth(lab, id)
           const sub = d.type === 'pc' ? d.pc.ip : typeLabel(d.type)
           const isSrc = src && src.dev === id
+          const plateW = Math.max(d.name.length * 6.8, sub.length * 5.8) + 14
           return (
             <g key={id}
               className={'devg' + (active === id ? ' active' : '') + (cabling ? ' movable' : '')}
@@ -192,8 +201,9 @@ export default function TopologyCanvas() {
               onClick={(e) => e.stopPropagation()}>
               <circle cx="0" cy="0" r="40" fill="none" stroke={isSrc ? '#a78bfa' : '#22d3ee'} strokeWidth={isSrc ? 2.5 : 1.5} className="halo" strokeDasharray="4 4" />
               <g className="iconbg"><Icon type={d.type} /></g>
-              <text x="0" y="38" className="devlabel" fontSize="11.5" fontWeight="600" textAnchor="middle" fill="#cbd9ee">{d.name}</text>
-              <text x="0" y="50" className="devsub" fontSize="10" textAnchor="middle" fill="#6c84a8">{sub}</text>
+              <rect x={-plateW / 2} y="27" width={plateW} height="28" rx="7" fill="#070d1a" fillOpacity="0.92" stroke={isSrc ? '#6d5bd0' : '#1d3054'} strokeWidth="0.9" />
+              <text x="0" y="38.5" className="devlabel" fontSize="11.5" fontWeight="600" textAnchor="middle" fill="#dce8fa">{d.name}</text>
+              <text x="0" y="50" className="devsub" fontSize="9.5" textAnchor="middle" fill="#7f9ec2">{sub}</text>
               <circle cx="26" cy="-22" r="4.5" fill={LED_COLOR[h]} />
               <title>{d.name + ' — ' + d.role + '\n' + (cabling ? 'Clic: elegir puerto · Arrastra para mover' : 'Clic para abrir la consola · Arrastra para mover') + (h === 'down' ? '\n⚠ Estado: FALLA' : h === 'warn' ? '\n⚠ Estado: DEGRADADO' : '\n✔ Estado: OK')}</title>
             </g>
