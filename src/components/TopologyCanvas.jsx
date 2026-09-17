@@ -318,10 +318,10 @@ export default function TopologyCanvas() {
                 const trunk = isSwitch(lab.devices[l.a.dev]) && isSwitch(lab.devices[l.b.dev])
                 const dur = isTrace ? '0.45s' : hot ? '0.6s' : trunk ? '0.8s' : '1.5s'
                 const color = isTrace ? '#67e8f9' : hot ? '#e2f7ff' : '#d1fae5'
-                const w = isTrace ? 4.4 : hot ? 4 : 3.2
+                const w = isTrace ? 3.0 : hot ? 2.8 : 2.6
                 const dx = pb.x - pa.x, dy = pb.y - pa.y
                 const len = Math.hypot(dx, dy) || 1
-                const nx = (-dy / len) * 1.9, ny = (dx / len) * 1.9
+                const nx = (-dy / len) * 0.6, ny = (dx / len) * 0.6
                 const cls = 'link-flow' + (isTrace ? ' link-flow-trace' : '') + (hot ? ' link-flow-hot' : '')
                 return (
                   <>
