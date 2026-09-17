@@ -21,6 +21,38 @@ function loadStats() {
 function saveStats(s) { try { localStorage.setItem(SKEY, JSON.stringify(s)) } catch (e) { /* sin storage disponible */ } }
 const randomSeed = () => ((Date.now() ^ Math.floor(Math.random() * 2147483647)) >>> 0)
 
+// Persistencia del laboratorio en curso para reanudar tras recargar (F5) o volver.
+const LKEY = 'ccna_lab_state_v1'
+function loadLabState() {
+  try {
+    const raw = localStorage.getItem(LKEY)
+    if (raw) { const p = JSON.parse(raw); if (p && typeof p === 'object' && p.seed && p.devices) return p }
+  } catch (e) { /* ignorar */ }
+  return null
+}
+function trimSessions(sessions) {
+  const out = {}
+  for (const [k, s] of Object.entries(sessions || {})) {
+    out[k] = { mode: s.mode, ifc: s.ifc, vid: s.vid, line: s.line, pool: s.pool, hi: s.hi, hist: (s.hist || []).slice(-50), out: (s.out || []).slice(-200) }
+  }
+  return out
+}
+function reviveLab(st) {
+  const lab = buildLab(st.seed >>> 0, st.pref || 'any')
+  if (st.scenarioKey && lab.scenario && lab.scenario.key !== st.scenarioKey) return null
+  lab.devices = st.devices
+  lab.links = st.links
+  if (st.positions) lab.positions = st.positions
+  if (st.order) lab.order = st.order
+  if (st.viewBox) lab.viewBox = st.viewBox
+  lab.hintsUsed = st.hintsUsed || 0
+  lab.sawSolution = !!st.sawSolution
+  lab.solved = !!st.solved
+  lab.attempted = !!st.attempted
+  recompute(lab)
+  return lab
+}
+
 export function buildLab(seed, pref) {
   const rnd0 = mulberry32((seed >>> 0) ^ 0x7eed1)
   const sc = pickScenario(rnd0, pref)
@@ -46,10 +78,23 @@ export function useNetwork() { return useContext(NetworkContext) }
 
 export function NetworkProvider({ children }) {
   const sessionsRef = useRef({})
+  const restoredRef = useRef(null)
   const [stats, setStats] = useState(loadStats)
-  const [lab, setLab] = useState(() => buildLab(randomSeed(), loadStats().pref))
+  const [lab, setLab] = useState(() => {
+    const st = loadLabState()
+    if (st) {
+      try {
+        const r = reviveLab(st)
+        if (r) { sessionsRef.current = st.sessions || {}; restoredRef.current = st; return r }
+      } catch (e) { /* estado viejo incompatible: generar uno nuevo */ }
+    }
+    return buildLab(randomSeed(), loadStats().pref)
+  })
   const [tick, setTick] = useState(0)
-  const [active, setActiveState] = useState(null)
+  const [active, setActiveState] = useState(() => {
+    const st = restoredRef.current
+    return (st && st.active && lab.devices[st.active] && hasCli(lab.devices[st.active])) ? st.active : null
+  })
   const [validation, setValidation] = useState(null)
   const [toasts, setToasts] = useState([])
   const [cabling, setCabling] = useState(false)
@@ -65,6 +110,20 @@ export function NetworkProvider({ children }) {
   }, [])
 
   useEffect(() => { saveStats(stats) }, [stats])
+
+  // Guarda el laboratorio en curso para reanudarlo al recargar.
+  useEffect(() => {
+    try {
+      localStorage.setItem(LKEY, JSON.stringify({
+        seed: lab.spec.seed, pref: stats.pref, scenarioKey: lab.scenario && lab.scenario.key,
+        devices: lab.devices, links: lab.links, positions: lab.positions, order: lab.order, viewBox: lab.viewBox,
+        hintsUsed: lab.hintsUsed, sawSolution: lab.sawSolution, solved: lab.solved, attempted: lab.attempted,
+        active,
+        sessions: trimSessions(sessionsRef.current),
+      }))
+    } catch (e) { /* storage lleno o no disponible */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lab, tick, stats.pref, active])
 
   const goalsResults = useMemo(() => evaluateGoals(lab), [lab, tick])
 

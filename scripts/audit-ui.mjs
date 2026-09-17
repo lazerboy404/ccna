@@ -83,6 +83,22 @@ try {
   const ruteo = page.getByRole('button', { name: 'Ruteo' })
   if (await ruteo.count()) { await ruteo.click(); await page.waitForTimeout(50); helpTabsOK = (await page.getByText(/router ospf 1/).count()) > 0 }
 
+  // Persistencia: mismo laboratorio y estado tras recargar (F5)
+  await page.getByRole('button', { name: /Nuevo Laboratorio/ }).click()
+  await page.waitForTimeout(120)
+  const ticketBefore = await page.locator('text=/#TK-/').first().textContent().catch(() => '')
+  await page.getByRole('button', { name: /SW1-CORE/ }).first().click().catch(() => {})
+  await page.waitForTimeout(80)
+  const inp = page.locator('input[placeholder*="comando"]')
+  if (await inp.count()) { await inp.fill('enable'); await inp.press('Enter'); await page.waitForTimeout(80) }
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForSelector('#topo')
+  await page.waitForTimeout(150)
+  const ticketAfter = await page.locator('text=/#TK-/').first().textContent().catch(() => '')
+  const termText = await page.locator('.term-scroll').innerText().catch(() => '')
+  const persistLab = !!ticketBefore && ticketBefore === ticketAfter
+  const persistConsole = /enable/.test(termText)
+
   // Popup de puertos dentro del contenedor
   await page.getByRole('button', { name: /Cablear/ }).click()
   await page.waitForTimeout(80)
@@ -122,6 +138,8 @@ try {
   console.log('Confirmación al Reiniciar: ' + (confirmOK ? 'OK' : 'FALLA'))
   console.log('Pista se deshabilita al agotarse: ' + (hintDisabled ? 'OK' : 'FALLA'))
   console.log('Pestañas de ayuda IOS: ' + (helpTabsOK ? 'OK' : 'FALLA'))
+  console.log('Persistencia del laboratorio (F5): ' + (persistLab ? 'OK' : 'FALLA'))
+  console.log('Persistencia de la consola (F5): ' + (persistConsole ? 'OK' : 'FALLA'))
   console.log('Errores de runtime: ' + errors.length)
   if (errors.length) console.log(errors.slice(0, 8).join('\n'))
   if (examples.length) console.log('Ejemplos: ' + [...new Set(examples)].join(' | '))
