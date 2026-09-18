@@ -43,9 +43,27 @@ export default function EndpointConsole() {
   }
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto term-scroll">
-      <div className={'glass no-blur rounded-lg overflow-hidden shrink-0 ' + (isCam ? 'border-cyan-900' : 'border-sky-900')}>
-        {/* Barra de ventana / navegador */}
+    <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-3 overflow-y-auto lg:overflow-hidden term-scroll">
+      {/* Terminal / Símbolo del sistema (izquierda) */}
+      <div className="rounded-lg border border-sim-border bg-[#05070d] flex flex-col min-h-[200px] min-w-0">
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-sim-border">
+          <span className="text-[11.5px] font-semibold text-sim-muted">{isCam ? 'Consola / registro' : 'Símbolo del sistema'}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto term-scroll p-2.5 font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words">
+          {out.length ? out.map((e, i) => (
+            <div key={i} className={e.cls === 'err' ? 'text-red-400' : e.cls === 'ok' ? 'text-green-400' : e.cls === 'cmd' ? 'text-cyan-300' : e.cls === 'hdr' ? 'text-amber-300' : 'text-[#a9c1e0]'}>{e.t}</div>
+          )) : <span className="text-sim-muted">Escribe un comando y pulsa Enter.</span>}
+        </div>
+        <form onSubmit={submit} className="flex items-center gap-2 border-t border-sim-border px-2.5 py-1.5">
+          <span className="text-cyan-300 font-mono text-[12px] whitespace-nowrap">{isCam ? d.name.toLowerCase().replace(/\s+/g, '-') + ':~#' : 'C:\\Users\\' + d.name + '>'}</span>
+          <input ref={cmdRef} value={cmd} onChange={(e) => setCmd(e.target.value)} autoComplete="off" spellCheck="false" data-testid="endpoint-cmd"
+            placeholder="escribe un comando y presiona Enter…"
+            className="flex-1 bg-transparent outline-none text-[#eaf4ff] caret-cyan-400 font-mono text-[12.5px]" />
+        </form>
+      </div>
+
+      {/* Configuración del adaptador de red (derecha) */}
+      <div className={'glass no-blur rounded-lg overflow-hidden flex flex-col min-w-0 ' + (isCam ? 'border-cyan-900' : 'border-sky-900')}>
         <div className={'flex items-center gap-2 px-3 py-1.5 border-b ' + (isCam ? 'border-cyan-900 bg-[#08131f]' : 'border-sky-900 bg-[#0c1a2e]')}>
           <span className="flex gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#ef4444]" />
@@ -54,10 +72,10 @@ export default function EndpointConsole() {
           </span>
           {isCam
             ? <span className="flex-1 truncate rounded bg-[#0b1728] border border-cyan-900 px-2 py-0.5 text-[11px] font-mono text-cyan-200/80">http://{d.pc.ip}/admin</span>
-            : <span className="flex-1 text-[12px] font-semibold text-sky-100">🖥️ Configuración de red — {d.name}</span>}
+            : <span className="flex-1 text-[12px] font-semibold text-sky-100">🖥️ Adaptador de red</span>}
         </div>
 
-        <div className="p-3 flex flex-col gap-3">
+        <div className="p-3 flex-1 min-h-0 overflow-y-auto term-scroll flex flex-col gap-3">
           <div className="flex items-center justify-between text-[11.5px]">
             <span className="text-sim-muted">{isCam ? 'Cámara IP' : isWireless(d) ? 'Laptop (WiFi)' : d.type === 'server' ? 'Servidor' : 'Equipo'} · {d.name}</span>
             <span className={'rounded-full border px-2 py-0.5 font-semibold ' + (up ? 'border-green-800 bg-[#0c2417] text-green-300' : 'border-red-900 bg-[#2a0f12] text-red-300')}>
@@ -65,7 +83,7 @@ export default function EndpointConsole() {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div className="flex flex-col gap-2.5">
             <Field label="Dirección IP" value={ip} onChange={setIp} />
             <Field label="Máscara de subred" value={mask} onChange={setMask} />
             <Field label="Puerta de enlace" value={gw} onChange={setGw} />
@@ -78,30 +96,9 @@ export default function EndpointConsole() {
             </button>
             <button onClick={() => { setIp(d.pc.ip || ''); setMask(d.pc.mask || ''); setGw(d.pc.gw || '') }}
               className="rounded-lg border border-sim-border bg-[#12213d] px-3 py-1.5 text-[12px] font-semibold hover:brightness-125">Revertir</button>
-            <span className="text-[11px] text-sim-muted">Subred actual: <span className="font-mono text-[#bcd0ea]">{d.pc.ip ? netOf(d.pc.ip, d.pc.mask) + '/' + maskLen(d.pc.mask) : '—'}</span></span>
           </div>
+          <span className="text-[11px] text-sim-muted">Subred actual: <span className="font-mono text-[#bcd0ea]">{d.pc.ip ? netOf(d.pc.ip, d.pc.mask) + '/' + maskLen(d.pc.mask) : '—'}</span></span>
         </div>
-      </div>
-
-      {/* Símbolo del sistema / registro, con entrada de comandos funcional */}
-      <div className="rounded-lg border border-sim-border bg-[#05070d] flex-1 min-h-[150px] flex flex-col">
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-sim-border flex-wrap">
-          <span className="text-[11.5px] font-semibold text-sim-muted">{isCam ? 'Símbolo del sistema / registro' : 'Símbolo del sistema'}</span>
-          <button onClick={() => run(active, 'ipconfig')} className="rounded border border-sim-border bg-[#12213d] px-2 py-0.5 text-[11px] hover:brightness-125">ipconfig</button>
-          <button onClick={() => run(active, 'help')} className="rounded border border-sim-border bg-[#12213d] px-2 py-0.5 text-[11px] hover:brightness-125">help</button>
-          <button onClick={() => run(active, 'cls')} className="rounded border border-sim-border bg-[#12213d] px-2 py-0.5 text-[11px] hover:brightness-125">cls</button>
-        </div>
-        <div className="flex-1 overflow-y-auto term-scroll p-2.5 font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words">
-          {out.length ? out.map((e, i) => (
-            <div key={i} className={e.cls === 'err' ? 'text-red-400' : e.cls === 'ok' ? 'text-green-400' : e.cls === 'cmd' ? 'text-cyan-300' : e.cls === 'hdr' ? 'text-amber-300' : 'text-[#a9c1e0]'}>{e.t}</div>
-          )) : <span className="text-sim-muted">Escribe un comando abajo (por ejemplo ipconfig, ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt; o ping 8.8.8.8) y pulsa Enter.</span>}
-        </div>
-        <form onSubmit={submit} className="flex items-center gap-2 border-t border-sim-border px-2.5 py-1.5">
-          <span className="text-cyan-300 font-mono text-[12px] whitespace-nowrap">{isCam ? d.name.toLowerCase().replace(/\s+/g, '-') + ':~#' : 'C:\\Users\\' + d.name + '>'}</span>
-          <input ref={cmdRef} value={cmd} onChange={(e) => setCmd(e.target.value)} autoComplete="off" spellCheck="false" data-testid="endpoint-cmd"
-            placeholder="escribe un comando y presiona Enter…"
-            className="flex-1 bg-transparent outline-none text-[#eaf4ff] caret-cyan-400 font-mono text-[12.5px]" />
-        </form>
       </div>
     </div>
   )
