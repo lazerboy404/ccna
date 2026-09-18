@@ -22,6 +22,9 @@ export default function Header() {
           <path d="M7 12h10M12 7v10M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="#22d3ee" strokeWidth="1.4" strokeLinecap="round" />
         </svg>
         <h1 className="text-[16px] font-bold tracking-wide">CCNA <span className="text-sim-accent">Lab Simulator</span></h1>
+        <span className="text-[10px] font-mono text-sim-muted/70 border border-sim-border rounded px-1.5 py-0.5" title="Versión de la interfaz (commit)">
+          {typeof __BUILD_SHA__ !== 'undefined' ? __BUILD_SHA__ : 'dev'}
+        </span>
       </div>
       <div className="flex gap-2 flex-wrap">
         {chip('🔥 Racha', stats.streak, true)}
