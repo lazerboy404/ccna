@@ -16,18 +16,24 @@ function Field({ label, value, onChange }) {
 }
 
 export default function EndpointConsole() {
-  const { lab, active, run, sessions, toast } = useNetwork()
+  const { lab, active, run, sessions, toast, tick } = useNetwork()
   const d = active ? lab.devices[active] : null
   const [ip, setIp] = useState('')
   const [mask, setMask] = useState('')
   const [gw, setGw] = useState('')
   const [cmd, setCmd] = useState('')
   const cmdRef = useRef(null)
+  const outRef = useRef(null)
 
   useEffect(() => {
     if (d && d.pc) { setIp(d.pc.ip || ''); setMask(d.pc.mask || ''); setGw(d.pc.gw || '') }
   }, [active, d && d.pc && d.pc.ip, d && d.pc && d.pc.mask, d && d.pc && d.pc.gw])
   useEffect(() => { if (cmdRef.current) cmdRef.current.focus() }, [active])
+  // Auto-scroll al final cuando llega nueva salida
+  useEffect(() => {
+    const el = outRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [tick, active, sessions])
 
   if (!d || !d.pc) return null
   const isCam = d.type === 'camera'
@@ -49,7 +55,7 @@ export default function EndpointConsole() {
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-sim-border">
           <span className="text-[11.5px] font-semibold text-sim-muted">{isCam ? 'Consola / registro' : 'Símbolo del sistema'}</span>
         </div>
-        <div className="flex-1 overflow-y-auto term-scroll p-2.5 font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words">
+        <div ref={outRef} data-testid="endpoint-out" className="flex-1 overflow-y-auto term-scroll p-2.5 font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words">
           {out.length ? out.map((e, i) => (
             <div key={i} className={e.cls === 'err' ? 'text-red-400' : e.cls === 'ok' ? 'text-green-400' : e.cls === 'cmd' ? 'text-cyan-300' : e.cls === 'hdr' ? 'text-amber-300' : 'text-[#a9c1e0]'}>{e.t}</div>
           )) : <span className="text-sim-muted">Escribe un comando y pulsa Enter.</span>}

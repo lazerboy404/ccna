@@ -150,6 +150,7 @@ try {
   // Interfaz gráfica del PC + ejecutar un comando desde su Símbolo del sistema
   let pcGuiOK = false
   let pcCmdOK = false
+  let pcAutoScroll = false
   await page.getByRole('button', { name: /PC-ADMIN/ }).first().click().catch(() => {})
   await page.waitForTimeout(120)
   pcGuiOK = (await page.getByText('Dirección IP').count()) > 0
@@ -168,6 +169,11 @@ try {
     const hasTrace = (await page.getByText(/Traza a 8.8.8.8/).count()) > 0
     await run('hostname')
     pcCmdOK = hasIpconfig && hasAll && hasMac && hasNet && hasTrace
+    const sc = await page.evaluate(() => {
+      const el = document.querySelector('[data-testid="endpoint-out"]')
+      return el ? { top: el.scrollTop, h: el.clientHeight, sh: el.scrollHeight } : null
+    })
+    pcAutoScroll = !!sc && sc.top + sc.h >= sc.sh - 4
   }
   await page.screenshot({ path: path.join(shotsDir, 'endpoint-pc.png') })
 
@@ -195,6 +201,7 @@ try {
   console.log('Arrastrar activado sí mueve: ' + (dragOnMoves ? 'OK' : 'FALLA'))
   console.log('Interfaz gráfica de PC: ' + (pcGuiOK ? 'OK' : 'FALLA'))
   console.log('Comando en Símbolo del sistema del PC: ' + (pcCmdOK ? 'OK' : 'FALLA'))
+  console.log('Auto-scroll de la consola del PC: ' + (pcAutoScroll ? 'OK' : 'FALLA'))
   console.log('Interfaz web de cámara: ' + (camGuiOK ? 'OK' : 'no se encontró lab con cámara'))
   console.log('Errores de runtime: ' + errors.length)
   if (errors.length) console.log(errors.slice(0, 8).join('\n'))
