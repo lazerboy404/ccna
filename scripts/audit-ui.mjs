@@ -155,10 +155,19 @@ try {
   pcGuiOK = (await page.getByText('Dirección IP').count()) > 0
   const endCmd = page.locator('[data-testid="endpoint-cmd"]')
   if (await endCmd.count()) {
-    await endCmd.fill('ipconfig')
-    await endCmd.press('Enter')
-    await page.waitForTimeout(120)
-    pcCmdOK = (await page.getByText(/Dirección IPv4/).count()) > 0
+    const run = async (c) => { await endCmd.fill(c); await endCmd.press('Enter'); await page.waitForTimeout(100) }
+    await run('ipconfig')
+    const hasIpconfig = (await page.getByText(/Dirección IPv4/).count()) > 0
+    await run('ipconfig /all')
+    const hasAll = (await page.getByText(/Dirección física/).count()) > 0
+    await run('getmac')
+    const hasMac = (await page.getByText(/Nombre del transporte/).count()) > 0
+    await run('netstat')
+    const hasNet = (await page.getByText(/Conexiones activas/).count()) > 0
+    await run('tracert 8.8.8.8')
+    const hasTrace = (await page.getByText(/Traza a 8.8.8.8/).count()) > 0
+    await run('hostname')
+    pcCmdOK = hasIpconfig && hasAll && hasMac && hasNet && hasTrace
   }
   await page.screenshot({ path: path.join(shotsDir, 'endpoint-pc.png') })
 

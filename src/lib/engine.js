@@ -32,8 +32,8 @@ export function portUp(lab, devId, port) {
 }
 
 export function findDupIp(lab, ip) {
-  if (!ip) return null
-  const hits = Object.values(lab.devices).filter((d) => d.pc && d.pc.ip === ip)
+  if (!ip || ip === '0.0.0.0') return null
+  const hits = Object.values(lab.devices).filter((d) => d.pc && d.pc.ip && d.pc.ip === ip)
   return hits.length > 1 ? hits : null
 }
 

@@ -555,12 +555,20 @@ function showCmd(ctx, d, o, toks) {
 function helpFor(d, c, o) {
   const common = ['show ip interface brief', 'show ip route', 'show interfaces [X]', 'show running-config', 'show access-lists', 'show port-security', 'show wlan', 'show ip nat translations', 'show version', 'ping <ip>', 'exit']
   if (isEndpoint(d)) {
-    o('Comandos disponibles (consola de PC):', 'hdr')
-    o('  ipconfig                 Ver IP, máscara y gateway')
-    o('  ip <ip> <máscara> <gw>   Configurar TCP/IP manualmente')
-    o('  ping <ip>                Probar conectividad')
-    o('  cls                      Limpiar pantalla')
-    o('  help                     Esta ayuda')
+    o('Comandos disponibles (Símbolo del sistema):', 'hdr')
+    o('  hostname                      Nombre del equipo')
+    o('  ipconfig [/all|/release|/renew|/flushdns]   Configuración IP')
+    o('  ip <ip> <máscara> <gw>        Configurar TCP/IP manualmente')
+    o('  ping <ip>                     Probar conectividad')
+    o('  tracert <ip>                  Trazar la ruta')
+    o('  netstat [-a|-e|-r]            Conexiones / estadísticas / rutas')
+    o('  arp -a                        Tabla ARP')
+    o('  route print                   Tabla de rutas')
+    o('  getmac                        Dirección física (MAC)')
+    o('  nslookup <nombre>             Consulta DNS')
+    o('  systeminfo | ver | whoami | date | time')
+    o('  cls                           Limpiar pantalla')
+    o('  help                          Esta ayuda')
     return
   }
   o('Comandos disponibles en modo ' + c.mode + ':', 'hdr')
@@ -573,19 +581,77 @@ function helpFor(d, c, o) {
   o('  ' + common.join(' | '), 'dim')
 }
 
+function winMac(id) { return macOf(id).replace(/\./g, '').toUpperCase().match(/.{2}/g).join('-') }
+function pcGatewayMac(lab, gw) {
+  for (const dev of Object.values(lab.devices)) {
+    for (const [name, i] of Object.entries(dev.interfaces)) if (i.ip === gw) return macOf(dev.id + name)
+  }
+  return null
+}
+
 function pcCommand(ctx, d, c, o, line) {
   const lab = ctx.lab
   const toks = line.split(' ')
   const cmd = toks[0].toLowerCase()
+  const opt = (toks[1] || '').toLowerCase()
+  const up = pcUp(lab, d.id)
+  const mac = winMac(d.id)
+  const host = d.name.toUpperCase()
+
+  if (cmd === 'hostname') { o(host); return }
+
   if (cmd === 'ipconfig') {
-    o('Configuración IP de Windows de ' + d.name, 'hdr')
+    const all = opt === '/all' || opt === 'all' || opt === '-all'
+    if (opt === '/release' || opt === 'release') {
+      if (!up) { o('Error de operación: el adaptador no está conectado.', 'err'); return }
+      if (!d.pc._static) d.pc._static = { ip: d.pc.ip, mask: d.pc.mask, gw: d.pc.gw }
+      o('')
+      o('Adaptador de Ethernet Ethernet:')
+      o('')
+      o('   Se liberó correctamente la dirección IPv4 ' + d.pc.ip + '.', 'ok')
+      d.pc.ip = '0.0.0.0'; d.pc.gw = '0.0.0.0'
+      return
+    }
+    if (opt === '/renew' || opt === 'renew') {
+      if (!up) { o('Error de operación: el adaptador no está conectado.', 'err'); return }
+      o('')
+      o('Adaptador de Ethernet Ethernet:')
+      o('')
+      if (d.pc._static) {
+        d.pc.ip = d.pc._static.ip; d.pc.mask = d.pc._static.mask; d.pc.gw = d.pc._static.gw
+        delete d.pc._static
+        o('   Se renovó correctamente la dirección IPv4 ' + d.pc.ip + '.', 'ok')
+      } else {
+        d.pc.ip = '169.254.' + (1 + Math.floor(Math.random() * 250)) + '.' + (2 + Math.floor(Math.random() * 250))
+        o('   No se pudo contactar al servidor DHCP. Se asignó una dirección APIPA: ' + d.pc.ip, 'err')
+      }
+      return
+    }
+    if (opt === '/flushdns') { o(''); o('Se vació correctamente la caché de resolución de DNS.'); return }
+    if (opt === '/displaydns') { o('Configuración IP de Windows'); o(''); o('    Registro de recursos recientes:'); o('    (sin entradas)'); return }
+    if (opt === '/?' || opt === 'help') { o('Uso: ipconfig [/all] [/release] [/renew] [/flushdns]'); return }
+    o('Configuración IP de Windows')
     o('')
-    o('   Dirección IPv4. . . . . . . . . . : ' + d.pc.ip)
-    o('   Máscara de subred . . . . . . . . : ' + d.pc.mask)
-    o('   Puerta de enlace predeterminada . : ' + d.pc.gw)
-    o('   Estado del medio. . . . . . . . . : ' + (pcUp(lab, d.id) ? 'Conectado' : 'Medio desconectado'), pcUp(lab, d.id) ? 'ok' : 'err')
+    o('Adaptador de Ethernet Ethernet:')
+    o('')
+    if (all) {
+      o('   Descripción del adaptador. . . . . . . . : Intel(R) Ethernet Connection I219-V')
+      o('   Dirección física. . . . . . . . . . . . . : ' + mac)
+      o('   DHCP habilitado. . . . . . . . . . . . . : No')
+      o('   Configuración automática habilitada . . . : Sí')
+      o('')
+    }
+    o('   Dirección IPv4. . . . . . . . . . . . . . : ' + d.pc.ip)
+    o('   Máscara de subred . . . . . . . . . . . . : ' + d.pc.mask)
+    o('   Puerta de enlace predeterminada . . . . . : ' + d.pc.gw)
+    if (all) {
+      o('   Servidores DNS . . . . . . . . . . . . . . : 8.8.8.8')
+      o('                                            8.8.4.4')
+    }
+    o('   Estado del medio. . . . . . . . . . . . . : ' + (up ? 'Conectado' : 'Medio desconectado'), up ? 'ok' : 'err')
     return
   }
+
   if (cmd === 'ip') {
     const [ip, mask, gw] = toks.slice(1)
     if (!ip || !mask || !gw || !validIp(ip) || !validIp(parseMask(mask)) || !validIp(gw)) { o('Uso: ip <dirección> <máscara|/prefijo> <gateway>', 'err'); return }
@@ -593,6 +659,111 @@ function pcCommand(ctx, d, c, o, line) {
     o('Configuración TCP/IP aplicada.', 'ok')
     return
   }
+
+  if (cmd === 'getmac') {
+    o('Dirección física    Nombre del transporte')
+    o('=================== ==========================================================')
+    o(mac + '   \\Device\\Tcpip_{' + d.id.toUpperCase() + '}')
+    return
+  }
+
+  if (cmd === 'arp') {
+    if (up) {
+      o('Interfaz: ' + d.pc.ip + ' --- 0x5')
+      o('  Dirección de Internet        Dirección física      Tipo')
+      const gwm = pcGatewayMac(lab, d.pc.gw)
+      if (gwm) o('  ' + pad(d.pc.gw, 29) + pad(gwm, 22) + 'dinámico')
+      for (const e of Object.values(lab.devices)) {
+        if (!e.pc || e.id === d.id) continue
+        if (sameL2(lab, d.id, e.id)) o('  ' + pad(e.pc.ip, 29) + pad(macOf(e.id), 22) + 'dinámico')
+      }
+    } else {
+      o('No se encontraron entradas ARP.', 'dim')
+    }
+    return
+  }
+
+  if (cmd === 'route' && (opt === 'print' || opt === '')) {
+    o('===========================================================================')
+    o('Lista de interfaces')
+    o('  0...' + mac.replace(/-/g, '') + ' ......' + 'Intel(R) Ethernet Connection')
+    o('===========================================================================')
+    o('          0.0.0.0          0.0.0.0      ' + (d.pc.gw || 'en vínculo') + '     0')
+    const net = netOf(d.pc.ip, d.pc.mask)
+    o('          ' + pad(net, 16) + pad(d.pc.mask, 16) + 'en vínculo   ' + '0')
+    o('===========================================================================')
+    return
+  }
+
+  if (cmd === 'netstat') {
+    if (opt === '-r' || opt === '/r') {
+      o('===========================================================================')
+      o('Lista de interfaces')
+      o('  Ruta activa:')
+      o('  Destino de red   Máscara de red   Puerta de enlace   Interfaz   Métrica')
+      o('          0.0.0.0          0.0.0.0     ' + pad(d.pc.gw || '-', 15) + pad(d.pc.ip, 12) + '25')
+      o('      ' + pad(netOf(d.pc.ip, d.pc.mask), 16) + pad(d.pc.mask, 16) + pad('En vínculo', 19) + pad(d.pc.ip, 12) + '281')
+      return
+    }
+    if (opt === '-e' || opt === '/e') {
+      o('Estadísticas de la interfaz')
+      o('                            Recibidos      Enviados')
+      o('Bytes                      ' + pad('1 204 553', 14) + '842 991')
+      o('Errores                    ' + pad('0', 14) + '0')
+      return
+    }
+    o('Conexiones activas')
+    o('')
+    o('  Nombre   Dirección local        Dirección remota       Estado')
+    if (up) {
+      const base = d.pc.ip.split('.').slice(0, 3).join('.')
+      o('  TCP    ' + pad(d.pc.ip + ':49812', 24) + pad(d.pc.gw + ':443', 23) + 'ESTABLISHED')
+      o('  TCP    ' + pad(d.pc.ip + ':49818', 24) + pad('142.250.0.' + (10 + (d.name.length % 40)) + ':443', 23) + 'ESTABLISHED')
+      o('  UDP    ' + pad(d.pc.ip + ':5353', 24) + pad('*:*', 23) + '')
+    } else {
+      o('  (no hay conexiones activas)', 'dim')
+    }
+    return
+  }
+
+  if (cmd === 'tracert' || cmd === 'traceroute') {
+    const target = toks[1]
+    if (!target || !validIp(target)) { o('Uso: tracert <dirección-ip>', 'err'); return }
+    o('Traza a ' + target + ' sobre un máximo de 30 saltos:')
+    o('')
+    const res = pingSim(lab, d.id, target)
+    if (res.ok && res.hops && res.hops.length) {
+      const ips = []
+      for (const id of res.hops) {
+        const dev = lab.devices[id]
+        if (!dev) continue
+        const ip = dev.pc ? dev.pc.ip : primaryIp(lab, dev)
+        if (ip) ips.push(ip)
+      }
+      if (ips[ips.length - 1] !== target) ips.push(target)
+      ips.forEach((ip, i) => o('  ' + pad(i + 1, 4) + pad('<1 ms', 10) + pad('<1 ms', 10) + '<1 ms     ' + ip, 'ok'))
+      o('')
+      o('Traza completa.', 'ok')
+    } else {
+      o('  ' + pad(1, 4) + pad('<1 ms', 10) + pad('<1 ms', 10) + '<1 ms     ' + (d.pc.gw || '*'))
+      o('  ' + pad(2, 4) + pad('*', 10) + pad('*', 10) + '*        Tiempo de espera agotado.', 'err')
+      o('')
+      o('Traza incompleta.', 'err')
+    }
+    return
+  }
+
+  if (cmd === 'nslookup') {
+    const target = toks[1]
+    o('Servidor predeterminado:  dns.local')
+    o('Address:  8.8.8.8')
+    o('')
+    if (!target) { o('Uso: nslookup <nombre|ip>', 'err'); return }
+    if (validIp(target)) { o('Nombre:    ' + d.name.toLowerCase() + '.local'); o('Address:  ' + target) }
+    else o('*** dns.local no puede encontrar ' + target + ': Non-existent domain', 'err')
+    return
+  }
+
   if (cmd === 'ping') {
     const target = toks[1]
     if (!target || !validIp(target)) { o('Uso: ping <dirección-ip>', 'err'); return }
@@ -607,8 +778,24 @@ function pcCommand(ctx, d, c, o, line) {
     }
     return
   }
+
+  if (cmd === 'systeminfo') {
+    o('Nombre de host:               ' + host)
+    o('Nombre del SO:                Microsoft Windows 10 Pro')
+    o('Versión del SO:               10.0.19045 N/D Compilación 19045')
+    o('Fabricante del sistema:       Simulador CCNA')
+    o('Procesador(es):               1 procesador instalado')
+    o('Memoria física total:         8.192 MB')
+    o('Dirección IPv4:               ' + d.pc.ip)
+    return
+  }
+  if (cmd === 'ver') { o('Microsoft Windows [Versión 10.0.19045.5011]'); return }
+  if (cmd === 'whoami') { o(d.name.toLowerCase() + '\\usuario'); return }
+  if (cmd === 'date') { o('La fecha actual es: ' + new Date().toLocaleDateString('es-MX')); return }
+  if (cmd === 'time') { o('La hora actual es: ' + new Date().toLocaleTimeString('es-MX')); return }
   if (cmd === 'exit') { o('(la consola de la PC permanece abierta)', 'dim'); return }
-  o("'" + toks[0] + "' no se reconoce como comando. Escribe 'help'.", 'err')
+  o("'" + toks[0] + "' no se reconoce como comando interno o externo,", 'err')
+  o('programa ejecutable o archivo por lotes. Escribe "help" para ver los comandos.', 'err')
 }
 
 /* ----------------------------- EJECUTOR PRINCIPAL ----------------------------- */

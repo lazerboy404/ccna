@@ -32,7 +32,7 @@ export default function EndpointConsole() {
   if (!d || !d.pc) return null
   const isCam = d.type === 'camera'
   const up = pcUp(lab, active)
-  const out = (sessions && sessions[active] && sessions[active].out) ? sessions[active].out.slice(-9) : []
+  const out = (sessions && sessions[active] && sessions[active].out) ? sessions[active].out.slice(-200) : []
   const submit = (e) => { e.preventDefault(); const c = cmd.trim(); if (!c) return; run(active, c); setCmd('') }
 
   const apply = () => {
