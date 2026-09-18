@@ -16,7 +16,7 @@ export default function ValidationModal() {
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="validation-title"
       className="fixed inset-0 bg-[#030711c9] z-50 flex items-center justify-center p-5 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) closeValidation() }}>
-      <div className="bg-[#0c1730] border border-[#27456f] rounded-2xl max-w-[640px] w-full p-5 shadow-2xl max-h-[88vh] overflow-y-auto">
+      <div className="glass glass-strong rounded-2xl max-w-[640px] w-full p-5 max-h-[88vh] overflow-y-auto term-scroll">
         <h3 id="validation-title" className="text-[17px] font-bold mb-1">{solved ? '🎉 ¡Laboratorio resuelto!' : 'Resultado de la validación'}</h3>
         <div className={'text-[44px] font-extrabold my-1 ' + (solved ? 'text-green-400' : 'text-amber-400')}>{scorePct}%</div>
         <div className="text-[12.5px] text-sim-muted mb-3.5">

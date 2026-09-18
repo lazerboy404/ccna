@@ -43,7 +43,7 @@ export default function EndpointConsole() {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto term-scroll">
-      <div className={'rounded-lg border bg-[#0a1526] overflow-hidden shrink-0 ' + (isCam ? 'border-cyan-900' : 'border-sky-900')}>
+      <div data-tilt="5" className={'glass rounded-lg overflow-hidden shrink-0 ' + (isCam ? 'border-cyan-900' : 'border-sky-900')}>
         {/* Barra de ventana / navegador */}
         <div className={'flex items-center gap-2 px-3 py-1.5 border-b ' + (isCam ? 'border-cyan-900 bg-[#08131f]' : 'border-sky-900 bg-[#0c1a2e]')}>
           <span className="flex gap-1.5">

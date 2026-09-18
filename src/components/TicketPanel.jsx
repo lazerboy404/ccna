@@ -10,7 +10,7 @@ const DIFF_TEXT = {
 }
 
 function Panel({ children, className = '' }) {
-  return <section className={'bg-sim-panel/95 border border-sim-border rounded-2xl p-3.5 shadow-lg ' + className}>{children}</section>
+  return <section className={'glass rounded-2xl p-3.5 ' + className}>{children}</section>
 }
 
 function SectionTitle({ icon, children, aside }) {
@@ -235,7 +235,7 @@ export default function TicketPanel() {
       )}
 
       {lab.sawSolution && (
-        <section className="bg-[#1a1035] border border-violet-900 rounded-2xl p-3.5 shadow-lg">
+        <section className="glass rounded-2xl p-3.5">
           <SectionTitle icon="📖" aside="−40 pts">Solución paso a paso</SectionTitle>
           <p className="text-[12px] text-[#c3d3ea] leading-relaxed mb-2">
             {isBuild

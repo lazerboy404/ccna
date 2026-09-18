@@ -15,7 +15,7 @@ export default function Header() {
     </span>
   )
   return (
-    <header className="flex items-center gap-3 flex-wrap px-4 py-2.5 border-b border-sim-border bg-[#0b1831f2] sticky top-0 z-40 backdrop-blur">
+    <header className="glass sticky top-0 z-40 flex items-center gap-3 flex-wrap px-4 py-2.5 rounded-none">
       <div className="flex items-center gap-2.5 mr-1">
         <svg viewBox="0 0 24 24" className="w-[30px] h-[30px]" fill="none">
           <circle cx="12" cy="12" r="10" stroke="#22d3ee" strokeWidth="1.6" />

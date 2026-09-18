@@ -1,6 +1,6 @@
 // Mapa interactivo: SVG con enlaces de estado dinámico, equipos arrastrables y cableado
 // estilo Packet Tracer (elige tipo de cable → clic al equipo → ventana de puertos disponibles).
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNetwork } from '../context/NetworkContext.jsx'
 import { linkState, deviceHealth, freePorts, cableKindOf, CABLE_LABEL } from '../lib/engine.js'
 import { isSwitch } from '../lib/utils.js'
@@ -140,6 +140,8 @@ export default function TopologyCanvas() {
   const [cableType, setCableType] = useState('auto')
   const [src, setSrc] = useState(null)
   const [popup, setPopup] = useState(null)
+  const [popupShift, setPopupShift] = useState({ x: 0, y: 0 })
+  const popupRef = useRef(null)
   const [, setScrollTick] = useState(0)
   const svgRef = useRef(null)
   const wrapRef = useRef(null)
@@ -182,15 +184,30 @@ export default function TopologyCanvas() {
     const s = r.width / 960
     const p = posMap[devId] || { x: 0, y: 0 }
     const left = Math.max(4, Math.min((r.left - wr.left) + p.x * s + 44, wr.width - 240))
-    const top = Math.max(4, Math.min((r.top - wr.top) + p.y * s - 8, wr.height - 252))
+    const top = Math.max(4, Math.min((r.top - wr.top) + p.y * s - 8, wr.height - 274))
     return { left, top }
   }
 
   const handleClick = (devId) => {
     if (!cabling) { setActive(devId); return }
     if (lab.devices[devId].type === 'isp') return
+    setPopupShift({ x: 0, y: 0 })
     setPopup({ dev: devId })
   }
+
+  // Ajusta el popup ya renderizado para que siempre quede dentro del contenedor.
+  useLayoutEffect(() => {
+    const p = popupRef.current, wrap = wrapRef.current
+    if (!popup || !p || !wrap) return
+    const pr = p.getBoundingClientRect(), wr = wrap.getBoundingClientRect()
+    let dx = 0, dy = 0
+    if (pr.right > wr.right - 4) dx = wr.right - 4 - pr.right
+    else if (pr.left < wr.left + 4) dx = wr.left + 4 - pr.left
+    if (pr.bottom > wr.bottom - 4) dy = wr.bottom - 4 - pr.bottom
+    else if (pr.top < wr.top + 4) dy = wr.top + 4 - pr.top
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) setPopupShift((s) => ({ x: s.x + dx, y: s.y + dy }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [popup, posMap])
 
   const onPointerDown = (devId, e) => {
     if (!editable || e.button !== 0) return
@@ -275,9 +292,9 @@ export default function TopologyCanvas() {
   placeLabels(portLabels)
 
   return (
-    <div ref={wrapRef} className="relative bg-sim-panel border border-sim-border rounded-2xl p-2 shadow-lg">
+    <div ref={wrapRef} className="relative glass card3d rounded-2xl p-2">
       {cabling && (
-        <div className="mx-2 mt-2 mb-1 rounded-lg border border-violet-700 bg-[#1a1035] px-3 py-2 text-[12px] text-[#e9dcff] flex items-center gap-2 flex-wrap">
+        <div className="glass mx-2 mt-2 mb-1 rounded-lg px-3 py-2 text-[12px] text-[#e9dcff] flex items-center gap-2 flex-wrap">
           <span className="font-semibold">🔌 Tipo de cable:</span>
           {['auto', 'directo', 'cruzado'].map((t) => (
             <button key={t} onClick={() => setCableType(t)}
@@ -377,7 +394,7 @@ export default function TopologyCanvas() {
         const compatible = !src || src.dev === popup.dev || pairCompatible(src.dev, popup.dev)
         const pos = popupPos(popup.dev)
         return (
-          <div className="portpopup absolute z-30 w-[228px] rounded-xl border border-[#2a4a7a] bg-[#0c1730f7] shadow-2xl text-[12px]" style={{ left: pos.left, top: pos.top }}>
+          <div ref={popupRef} className="glass glass-strong portpopup absolute z-30 w-[228px] rounded-xl text-[12px]" style={{ left: pos.left, top: pos.top, transform: 'translate(' + popupShift.x + 'px,' + popupShift.y + 'px)' }}>
             <div className="flex items-center justify-between px-3 py-2 border-b border-[#1d3054]">
               <span className="font-semibold text-sim-text">{dev.name} <span className="text-sim-muted font-normal">· puertos libres</span></span>
               <button onClick={() => { setPopup(null); setSrc(null) }} className="text-sim-muted hover:text-sim-text">✕</button>
@@ -385,7 +402,7 @@ export default function TopologyCanvas() {
             {src && src.dev !== popup.dev && (
               <div className="px-3 pt-2 text-[11px] text-[#b9a8e6]">Desde <b>{lab.devices[src.dev].name} {src.port}</b></div>
             )}
-            <div className="px-2 py-2 flex flex-col gap-1 max-h-[190px] overflow-y-auto">
+            <div className="px-2 py-2 flex flex-col gap-1 max-h-[168px] overflow-y-auto term-scroll">
               {!compatible ? (
                 <div className="px-1 py-2 text-[11px] text-red-300">Este cable no sirve entre {srcDev.name} y {dev.name}. Necesitas cable <b>{needLabel(src.dev, popup.dev)}</b>.</div>
               ) : ports.length ? (

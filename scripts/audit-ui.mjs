@@ -114,7 +114,10 @@ try {
       return { p: { x: b.x, y: b.y, w: b.width, h: b.height }, w: { x: w.x, y: w.y, w: w.width, h: w.height } }
     })
     if (!pop) { popupBad++; examples.push('no apareció el popup de puertos') }
-    else if (pop.p.x < pop.w.x - 1 || pop.p.y < pop.w.y - 1 || pop.p.x + pop.p.w > pop.w.x + pop.w.w + 1 || pop.p.y + pop.p.h > pop.w.y + pop.w.h + 1) { popupBad++; examples.push('popup desbordado') }
+    else if (pop.p.x < pop.w.x - 1 || pop.p.y < pop.w.y - 1 || pop.p.x + pop.p.w > pop.w.x + pop.w.w + 1 || pop.p.y + pop.p.h > pop.w.y + pop.w.h + 1) {
+      popupBad++
+      examples.push('popup desbordado p=' + JSON.stringify(pop.p) + ' w=' + JSON.stringify(pop.w))
+    }
   }
 
   // Vista móvil

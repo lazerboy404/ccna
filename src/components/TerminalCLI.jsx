@@ -61,7 +61,7 @@ export default function TerminalCLI() {
   const prompt = active && lab.devices[active] ? promptOf(lab.devices[active], sess || cliS({ lab, sessions }, active)) : ''
 
   return (
-    <div className="bg-sim-panel border border-sim-border rounded-2xl overflow-hidden shadow-lg">
+    <div className="glass rounded-2xl overflow-hidden">
       <div className="flex gap-1 px-3 pt-2.5 flex-wrap items-center">
         {termOrder(lab).map((id) => (
           <button key={id} onClick={() => setActive(id)}

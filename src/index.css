@@ -2,21 +2,129 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Spatial UI — tokens y sistema visual
+   ============================================================ */
+:root {
+  --bg-0: #05080f;
+  --bg-1: #0a1424;
+  --glass-bg-1: rgba(30, 48, 80, 0.55);
+  --glass-bg-2: rgba(10, 17, 31, 0.50);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-border-strong: rgba(255, 255, 255, 0.20);
+  --text: #e6eefb;
+  --muted: #9fb2d0;
+  --accent: #22d3ee;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
 html, body { height: 100%; }
+
 body {
-  background: radial-gradient(1200px 700px at 80% -10%, #10233f 0%, #070d1a 55%);
-  color: #dbe7f8;
+  color: var(--text);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 14px;
   overflow-x: hidden;
+  background:
+    radial-gradient(1100px 700px at 84% -12%, #14304f 0%, transparent 58%),
+    radial-gradient(900px 600px at 6% 112%, #221a4d 0%, transparent 55%),
+    radial-gradient(760px 520px at 50% 42%, #0a1f34 0%, transparent 72%),
+    linear-gradient(180deg, #060a13, #05070e);
+  background-attachment: fixed;
 }
-button { font-family: inherit; cursor: pointer; }
+
+/* Aurora de fondo con profundidad */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -15%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(420px 420px at 20% 20%, rgba(34, 211, 238, 0.16), transparent 60%),
+    radial-gradient(380px 380px at 80% 30%, rgba(167, 139, 250, 0.14), transparent 60%),
+    radial-gradient(440px 440px at 60% 88%, rgba(59, 130, 246, 0.12), transparent 60%);
+  filter: blur(70px);
+  animation: aurora 22s ease-in-out infinite alternate;
+}
+@keyframes aurora {
+  from { transform: translate3d(-2%, -1%, 0) scale(1); }
+  to { transform: translate3d(2%, 2%, 0) scale(1.06); }
+}
+#root { position: relative; z-index: 1; }
+
+/* Contenedor con perspectiva (eje Z) */
+.spatial-root { perspective: 1200px; perspective-origin: 50% 30%; }
+
+/* ============================================================
+   Material cristalino (glassmorphism elevado)
+   ============================================================ */
+.glass {
+  position: relative;
+  background: linear-gradient(150deg, var(--glass-bg-1), var(--glass-bg-2));
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 22px 45px -18px rgba(2, 6, 16, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+.glass-strong {
+  background: linear-gradient(150deg, rgba(34, 54, 90, 0.78), rgba(9, 15, 28, 0.72));
+  border-color: var(--glass-border-strong);
+}
+.glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 38%);
+  opacity: 0.8;
+}
+
+/* Elevación / flotado en el eje Z */
+.card3d { transform: perspective(1300px) translateZ(0); transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease); }
+.card3d-hover:hover {
+  transform: perspective(1300px) translateZ(26px) scale(1.008);
+  box-shadow: 0 42px 72px -26px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+[data-tilt] {
+  transform: perspective(1200px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(0);
+  transition: transform 0.18s ease-out;
+  will-change: transform;
+}
+
+/* ============================================================
+   Micro-interacciones
+   ============================================================ */
+button {
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease), box-shadow 0.16s var(--ease), filter 0.16s var(--ease), background-color 0.16s var(--ease);
+}
+button:disabled { cursor: not-allowed; }
+button:not(:disabled):active { transform: translateY(1px) scale(0.985); }
+header button {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 8px 18px -8px rgba(0, 0, 0, 0.8);
+}
+header button:not(:disabled):hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 18px 28px -10px rgba(0, 0, 0, 0.88);
+}
 header button, header select { white-space: nowrap; }
+
+input, select, textarea { transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease), background-color 0.16s var(--ease); }
+input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.25); }
+
 button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible {
   outline: 2px solid #22d3ee; outline-offset: 2px; border-radius: 6px;
 }
 
-/* Lienzo de topología */
+/* ============================================================
+   Lienzo de topología (se conserva la lógica visual de la red)
+   ============================================================ */
 .topo-bg { background: radial-gradient(900px 480px at 50% 20%, #0c1a33 0%, #08101f 70%); }
 .devg { cursor: pointer; }
 .devg.movable { cursor: grab; }
@@ -34,10 +142,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .lk-cut { stroke: #ef4444; stroke-dasharray: 2 7; stroke-width: 4; filter: drop-shadow(0 0 4px #ef444477); }
 .lk-wifi { stroke-dasharray: 3 5; }
 
-/* Datos fluyendo por los enlaces activos: puntos bidireccionales (velocidad por estilo inline) */
+/* Datos fluyendo por los enlaces activos (puntos dentro del cable) */
 @keyframes flow { to { stroke-dashoffset: -28; } }
 .link-flow {
-  stroke: #d1fae5; stroke-width: 3.2; stroke-linecap: round;
+  stroke: #d1fae5; stroke-width: 2.6; stroke-linecap: round;
   stroke-dasharray: 0.1 14; pointer-events: none;
   animation: flow 1s linear infinite;
 }
@@ -51,9 +159,21 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .wifi-pulse.d2 { animation-delay: 0.9s; }
 .wifi-pulse.hot { stroke: #e2f7ff; }
 
-@media (prefers-reduced-motion: reduce) { .link-flow, .wifi-pulse { animation: none; } }
-
-/* Scrollbar de la terminal */
-.term-scroll::-webkit-scrollbar { width: 9px; }
-.term-scroll::-webkit-scrollbar-thumb { background: #1c3a5e; border-radius: 5px; }
+/* ============================================================
+   Scrollbars
+   ============================================================ */
+.term-scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.term-scroll::-webkit-scrollbar-thumb { background: rgba(60, 96, 150, 0.55); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
+.term-scroll::-webkit-scrollbar-thumb:hover { background: rgba(80, 124, 190, 0.75); background-clip: content-box; }
 .term-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================
+   Accesibilidad: reduce motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
+  [data-tilt] { transform: none !important; }
+  .link-flow, .wifi-pulse { animation: none; }
+  .card3d, .card3d-hover:hover { transform: none; }
+  * { transition-duration: 0.001ms !important; }
+}

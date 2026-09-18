@@ -19,7 +19,7 @@ export default function ConfirmDialog() {
     <div role="dialog" aria-modal="true" aria-labelledby="confirm-title"
       className="fixed inset-0 bg-[#030711c9] z-[70] flex items-center justify-center p-5 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) closeAsk() }}>
-      <div className="bg-[#0c1730] border border-[#27456f] rounded-2xl max-w-[440px] w-full p-5 shadow-2xl">
+      <div className="glass glass-strong rounded-2xl max-w-[440px] w-full p-5">
         <h3 id="confirm-title" className="text-[16px] font-bold mb-1.5">{title}</h3>
         <p className="text-[12.5px] text-sim-muted leading-relaxed mb-4">{body}</p>
         <div className="flex gap-2 justify-end">
