@@ -135,6 +135,7 @@ function WifiPulse({ ap, hot }) {
 export default function TopologyCanvas() {
   const { lab, active, setActive, cabling, connect, disconnect, trace } = useNetwork()
   const [anim, setAnim] = useState(true)
+  const [editable, setEditable] = useState(false)
   const [posMap, setPosMap] = useState(() => Object.assign({}, lab.positions))
   const [cableType, setCableType] = useState('auto')
   const [src, setSrc] = useState(null)
@@ -192,7 +193,7 @@ export default function TopologyCanvas() {
   }
 
   const onPointerDown = (devId, e) => {
-    if (e.button !== 0) return
+    if (!editable || e.button !== 0) return
     const p = posMap[devId]
     dragRef.current = { id: devId, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false }
     if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
@@ -349,19 +350,19 @@ export default function TopologyCanvas() {
           const plateW = plateWOf(d)
           return (
             <g key={id}
-              className={'devg' + (active === id ? ' active' : '') + (cabling ? ' movable' : '')}
+              className={'devg' + (active === id ? ' active' : '') + (editable ? ' movable' : '')}
               transform={'translate(' + p.x + ',' + p.y + ')'}
               onPointerDown={(e) => onPointerDown(id, e)}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
-              onClick={(e) => e.stopPropagation()}>
+              onClick={(e) => { e.stopPropagation(); if (!editable) handleClick(id) }}>
               <circle cx="0" cy="0" r="40" fill="none" stroke={isSrc ? '#a78bfa' : '#22d3ee'} strokeWidth={isSrc ? 2.5 : 1.5} className="halo" strokeDasharray="4 4" />
               <g className="iconbg"><Icon type={d.type} /></g>
               <rect className="plate" x={-plateW / 2} y="27" width={plateW} height="28" rx="7" fill="#070d1a" fillOpacity="0.92" stroke={isSrc ? '#6d5bd0' : '#1d3054'} strokeWidth="0.9" />
               <text x="0" y="38.5" className="devlabel" fontSize="11.5" fontWeight="600" textAnchor="middle" fill="#dce8fa">{d.name}</text>
               <text x="0" y="50" className="devsub" fontSize="9.5" textAnchor="middle" fill="#7f9ec2">{sub}</text>
               <circle cx="26" cy="-22" r="4.5" fill={LED_COLOR[h]} />
-              <title>{d.name + ' — ' + d.role + '\n' + (cabling ? 'Clic: elegir puerto · Arrastra para mover' : 'Clic para abrir la consola · Arrastra para mover') + (h === 'down' ? '\n⚠ Estado: FALLA' : h === 'warn' ? '\n⚠ Estado: DEGRADADO' : '\n✔ Estado: OK')}</title>
+              <title>{d.name + ' — ' + d.role + '\n' + (cabling ? 'Clic: elegir puerto' : editable ? 'Clic: consola · Arrastra para mover' : 'Clic para abrir la consola') + (h === 'down' ? '\n⚠ Estado: FALLA' : h === 'warn' ? '\n⚠ Estado: DEGRADADO' : '\n✔ Estado: OK')}</title>
             </g>
           )
         })}
@@ -406,7 +407,10 @@ export default function TopologyCanvas() {
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#22c55e' }} /> Up/Up</span>
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#ef4444' }} /> Down / cable dañado</span>
         <span className="flex items-center gap-1.5"><span className="inline-block w-6 border-t-[3.5px] rounded" style={{ borderColor: '#f59e0b' }} /> STP / VLAN mismatch</span>
-        <span className="hidden sm:inline">{cabling ? '🔌 Clic en un equipo para cablear · clic en un cable para retirarlo' : 'Clic = consola · Arrastra para mover'}</span>
+        <span className="hidden sm:inline">{cabling ? '🔌 Clic en un equipo para cablear · clic en un cable para retirarlo' : editable ? '✋ Arrastra los equipos para acomodarlos' : 'Clic en un equipo = consola'}</span>
+        <button onClick={() => setEditable((e) => !e)}
+          className={'rounded-md border px-2 py-0.5 text-[11px] font-semibold ' + (editable ? 'border-violet-400 bg-violet-700 text-white' : 'border-sim-border bg-[#12213d] text-sim-muted hover:brightness-125')}
+          title="Activa para poder arrastrar/mover los equipos del diagrama">✋ {editable ? 'Moviendo' : 'Mover'}</button>
         <button onClick={arrange} className="rounded-md border border-sim-border bg-[#12213d] px-2 py-0.5 text-[11px] font-semibold hover:brightness-125" title="Repone los equipos a su posición inicial">🧹 Acomodar</button>
         <button onClick={() => setAnim((a) => !a)}
           className={'rounded-md border px-2 py-0.5 text-[11px] font-semibold ' + (anim ? 'border-cyan-800 bg-[#0d2b3a] text-cyan-200' : 'border-sim-border bg-[#12213d] text-sim-muted')}>

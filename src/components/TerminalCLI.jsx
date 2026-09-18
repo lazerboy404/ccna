@@ -1,8 +1,11 @@
-// Consola Cisco IOS por dispositivo: pestañas, historial y salida con prompt dinámico
+// Consola Cisco IOS por dispositivo: pestañas, historial y salida con prompt dinámico.
+// Para equipos finales (PC/servidor/cámara/laptop) ofrece una interfaz gráfica de configuración.
 import { useEffect, useRef, useState } from 'react'
 import { useNetwork } from '../context/NetworkContext.jsx'
 import { termOrder } from '../lib/engine.js'
 import { promptOf, cliS } from '../lib/cli.js'
+import { isEndpoint } from '../lib/utils.js'
+import EndpointConsole from './EndpointConsole.jsx'
 
 const CLS = {
   cmd: 'text-cyan-300',
@@ -16,9 +19,13 @@ const CLS = {
 export default function TerminalCLI() {
   const { lab, active, sessions, setActive, run, tick } = useNetwork()
   const [val, setVal] = useState('')
+  const [showCli, setShowCli] = useState(false)
   const outRef = useRef(null)
   const inRef = useRef(null)
   const sess = active ? sessions[active] : null
+  const isEnd = !!(active && lab.devices[active] && isEndpoint(lab.devices[active]))
+
+  useEffect(() => { setShowCli(false) }, [active])
 
   useEffect(() => {
     const el = outRef.current
@@ -63,26 +70,36 @@ export default function TerminalCLI() {
             {lab.devices[id].name}
           </button>
         ))}
-        <div className="ml-auto text-[11px] text-sim-muted pb-1.5">
-          {active ? 'Consola: ' + lab.devices[active].name + ' · ↑/↓ historial · cls limpia' : ''}
+        <div className="ml-auto flex items-center gap-2 text-[11px] text-sim-muted pb-1.5">
+          {active && <span className="hidden sm:inline">{isEnd ? (showCli ? 'Línea de comandos' : 'Interfaz gráfica de configuración') : 'Consola: ' + lab.devices[active].name + ' · ↑/↓ historial · cls limpia'}</span>}
+          {isEnd && (
+            <button onClick={() => setShowCli((s) => !s)}
+              className="rounded-md border border-sim-border bg-[#12213d] px-2 py-0.5 font-semibold hover:brightness-125">
+              {showCli ? '💻 Modo gráfico' : '⌨️ Ver CLI'}
+            </button>
+          )}
         </div>
       </div>
       <div className="bg-[#050b14] border-t border-[#12314e] p-3 h-[clamp(210px,40vh,360px)] flex flex-col font-mono text-[13px]">
         {active ? (
-          <>
-            <div ref={outRef} className="flex-1 overflow-y-auto whitespace-pre-wrap break-words leading-[1.5] pr-1.5 term-scroll">
-              {(sess ? sess.out.slice(Math.max(0, sess.out.length - 400)) : []).map((e, i) => (
-                <div key={i} className={CLS[e.cls] || CLS['']}>{e.t}</div>
-              ))}
-            </div>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-green-400 font-bold whitespace-nowrap">{prompt}</span>
-              <input ref={inRef} value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={onKeyDown}
-                autoComplete="off" spellCheck="false"
-                className="flex-1 bg-transparent outline-none text-[#eaf4ff] caret-cyan-400 font-mono text-[13px]"
-                placeholder="escribe un comando y presiona Enter…" />
-            </div>
-          </>
+          isEnd && !showCli ? (
+            <EndpointConsole />
+          ) : (
+            <>
+              <div ref={outRef} className="flex-1 overflow-y-auto whitespace-pre-wrap break-words leading-[1.5] pr-1.5 term-scroll">
+                {(sess ? sess.out.slice(Math.max(0, sess.out.length - 400)) : []).map((e, i) => (
+                  <div key={i} className={CLS[e.cls] || CLS['']}>{e.t}</div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-green-400 font-bold whitespace-nowrap">{prompt}</span>
+                <input ref={inRef} value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={onKeyDown}
+                  autoComplete="off" spellCheck="false"
+                  className="flex-1 bg-transparent outline-none text-[#eaf4ff] caret-cyan-400 font-mono text-[13px]"
+                  placeholder="escribe un comando y presiona Enter…" />
+              </div>
+            </>
+          )
         ) : (
           <div className="flex-1 flex items-center justify-center text-[#6b86ad] text-[13px] text-center leading-relaxed">
             🔌 Haz clic en un dispositivo del diagrama (o en una pestaña)<br />para conectar su cable de consola y abrir la CLI de Cisco IOS.

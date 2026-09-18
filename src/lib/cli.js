@@ -75,16 +75,9 @@ function portNote(ctx, devId, port, o) {
   const other = otherSide(l, devId)
   const od = ctx.lab.devices[other.dev]
   const oname = od.name + (other.port ? ' (' + other.port + ')' : '')
-  if (st === 'ok') o('✔ Enlace hacia ' + oname + ': UP/UP — verde en el diagrama.', 'ok')
-  else if (st === 'down') {
-    const i = ctx.lab.devices[devId].interfaces[port]
-    let why
-    if (i && i.status !== 'up') why = 'este puerto sigue en shutdown'
-    else if (!physUp(ctx.lab, devId, port)) why = 'la VLAN de acceso de este puerto no existe en el switch'
-    else why = 'el extremo remoto ' + oname + ' sigue apagado o mal configurado'
-    o('⚠ El enlace hacia ' + oname + ' sigue ROJO: ' + why + '.', 'err')
-  } else if (st === 'stp') o('⚠ El puerto está administrativamente UP pero STP lo mantiene BLOQUEANDO (naranja punteado en el diagrama): resuelve el loop o aplica spanning-tree portfast [trunk].', 'err')
-  else o('⚠ El enlace hacia ' + oname + ' sigue NARANJA: desajuste de trunking/VLAN con el vecino (compara switchport mode y show interfaces trunk en ambos extremos).', 'err')
+  if (st === 'ok') o('Enlace hacia ' + oname + ': UP/UP.', 'ok')
+  else if (st === 'down') o('El enlace hacia ' + oname + ' sigue caído.', 'err')
+  else o('El enlace hacia ' + oname + ' no está pasando tráfico.', 'err')
 }
 
 /* ----------------------------- SHOW COMMANDS ----------------------------- */
@@ -519,7 +512,6 @@ function cliPing(lab, d, o, target) {
   } else {
     o('.....', 'err')
     o('Success rate is 0 percent (0/5)', 'err')
-    o('[DIAG] ' + res.reason, 'dim')
   }
 }
 
@@ -586,13 +578,12 @@ function pcCommand(ctx, d, c, o, line) {
   const toks = line.split(' ')
   const cmd = toks[0].toLowerCase()
   if (cmd === 'ipconfig') {
-    o('Configuración IP de ' + d.name, 'hdr')
+    o('Configuración IP de Windows de ' + d.name, 'hdr')
+    o('')
     o('   Dirección IPv4. . . . . . . . . . : ' + d.pc.ip)
-    o('   Máscara de subred . . . . . . . . : ' + d.pc.mask + ' (/' + maskLen(d.pc.mask) + ')')
+    o('   Máscara de subred . . . . . . . . : ' + d.pc.mask)
     o('   Puerta de enlace predeterminada . : ' + d.pc.gw)
-    o('   Subred detectada. . . . . . . . . : ' + netOf(d.pc.ip, d.pc.mask) + '/' + maskLen(d.pc.mask))
-    if (!(netOf(d.pc.gw, d.pc.mask) === netOf(d.pc.ip, d.pc.mask))) o('   ⚠ ADVERTENCIA: el gateway NO está dentro de la subred del equipo.', 'err')
-    o('   Enlace físico. . . . . . . . . . . : ' + (pcUp(lab, d.id) ? 'CONECTADO' : 'DESCONECTADO'), pcUp(lab, d.id) ? 'ok' : 'err')
+    o('   Estado del medio. . . . . . . . . : ' + (pcUp(lab, d.id) ? 'Conectado' : 'Medio desconectado'), pcUp(lab, d.id) ? 'ok' : 'err')
     return
   }
   if (cmd === 'ip') {
@@ -600,7 +591,6 @@ function pcCommand(ctx, d, c, o, line) {
     if (!ip || !mask || !gw || !validIp(ip) || !validIp(parseMask(mask)) || !validIp(gw)) { o('Uso: ip <dirección> <máscara|/prefijo> <gateway>', 'err'); return }
     d.pc.ip = ip; d.pc.mask = parseMask(mask); d.pc.gw = gw
     o('Configuración TCP/IP aplicada.', 'ok')
-    if (netOf(gw, d.pc.mask) !== netOf(ip, d.pc.mask)) o('⚠ El gateway ' + gw + ' queda fuera de la subred ' + netOf(ip, d.pc.mask) + '/' + maskLen(d.pc.mask) + '.', 'err')
     return
   }
   if (cmd === 'ping') {
@@ -614,7 +604,6 @@ function pcCommand(ctx, d, c, o, line) {
     } else {
       for (let i = 0; i < 4; i++) o('Tiempo de espera agotado para esta solicitud.', 'err')
       o('Estadísticas de ping: Paquetes: enviados = 4, recibidos = 0, perdidos = 4 (100% de pérdida)', 'err')
-      o('[DIAG] ' + res.reason, 'dim')
     }
     return
   }

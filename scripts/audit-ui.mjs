@@ -129,6 +129,37 @@ try {
   })
   console.log('Móvil 390px → SVG ancho ' + mInfo.svgW.toFixed(0) + 'px, fuente etiqueta ' + mInfo.fontPx.toFixed(1) + 'px')
 
+  // Modo arrastrar: desactivado no mueve; activado sí mueve
+  const devg = page.locator('#topo g.devg').nth(2)
+  const trBefore = await devg.getAttribute('transform')
+  const b1 = await devg.boundingBox()
+  await page.mouse.move(b1.x + b1.width / 2, b1.y + b1.height / 2)
+  await page.mouse.down(); await page.mouse.move(b1.x + 160, b1.y + 90, { steps: 6 }); await page.mouse.up()
+  await page.waitForTimeout(80)
+  const dragOffNoMove = (await devg.getAttribute('transform')) === trBefore
+  await page.getByRole('button', { name: /Mover/ }).first().click()
+  const b2 = await devg.boundingBox()
+  await page.mouse.move(b2.x + b2.width / 2, b2.y + b2.height / 2)
+  await page.mouse.down(); await page.mouse.move(b2.x + 50, b2.y + 40, { steps: 6 }); await page.mouse.up()
+  await page.waitForTimeout(80)
+  const dragOnMoves = (await devg.getAttribute('transform')) !== trBefore
+
+  // Interfaz gráfica del PC
+  let pcGuiOK = false
+  await page.getByRole('button', { name: /PC-ADMIN/ }).first().click().catch(() => {})
+  await page.waitForTimeout(100)
+  pcGuiOK = (await page.getByText('Dirección IP').count()) > 0
+  await page.screenshot({ path: path.join(shotsDir, 'endpoint-pc.png') })
+
+  // Interfaz web de la cámara (busca un lab con CAM-)
+  let camGuiOK = false
+  for (let i = 0; i < 40 && !camGuiOK; i++) {
+    const camTab = page.getByRole('button', { name: /^CAM-/ })
+    if (await camTab.count()) { await camTab.first().click(); await page.waitForTimeout(100); camGuiOK = (await page.locator('text=/http:\\/\\//').count()) > 0; break }
+    await newLab.click(); await page.waitForTimeout(60)
+  }
+  if (camGuiOK) await page.screenshot({ path: path.join(shotsDir, 'endpoint-cam.png') })
+
   console.log('\n=== Auditoría UI ===')
   console.log('Labs auditados: ' + labs + ' (construcción: ' + builds + ')')
   console.log('Placas solapadas: ' + overlaps)
@@ -140,6 +171,10 @@ try {
   console.log('Pestañas de ayuda IOS: ' + (helpTabsOK ? 'OK' : 'FALLA'))
   console.log('Persistencia del laboratorio (F5): ' + (persistLab ? 'OK' : 'FALLA'))
   console.log('Persistencia de la consola (F5): ' + (persistConsole ? 'OK' : 'FALLA'))
+  console.log('Arrastrar desactivado no mueve: ' + (dragOffNoMove ? 'OK' : 'FALLA'))
+  console.log('Arrastrar activado sí mueve: ' + (dragOnMoves ? 'OK' : 'FALLA'))
+  console.log('Interfaz gráfica de PC: ' + (pcGuiOK ? 'OK' : 'FALLA'))
+  console.log('Interfaz web de cámara: ' + (camGuiOK ? 'OK' : 'no se encontró lab con cámara'))
   console.log('Errores de runtime: ' + errors.length)
   if (errors.length) console.log(errors.slice(0, 8).join('\n'))
   if (examples.length) console.log('Ejemplos: ' + [...new Set(examples)].join(' | '))
