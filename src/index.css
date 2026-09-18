@@ -74,6 +74,13 @@ body::before {
   background: linear-gradient(150deg, rgba(34, 54, 90, 0.78), rgba(9, 15, 28, 0.72));
   border-color: var(--glass-border-strong);
 }
+/* Sin blur (rendimiento) para superficies que cambian al arrastrar */
+.no-blur { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+/* Mientras se arrastra: pausa animaciones que repintan y evita filtros costosos */
+.dragging .link-flow, .dragging .wifi-pulse { animation-play-state: paused; }
+.dragging .link, .dragging .link-flow-trace, .dragging .link-flow-hot { filter: none !important; }
+.dragging .devg { will-change: transform; }
+.dragging .card3d { transition: none; }
 .glass::after {
   content: '';
   position: absolute;

@@ -212,8 +212,9 @@ export default function TopologyCanvas() {
   const onPointerDown = (devId, e) => {
     if (!editable || e.button !== 0) return
     const p = posMap[devId]
-    dragRef.current = { id: devId, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false }
+    dragRef.current = { id: devId, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false, pos: p, raf: 0 }
     if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
+    if (wrapRef.current) wrapRef.current.classList.add('dragging')
     e.stopPropagation()
   }
   const onPointerMove = (e) => {
@@ -226,15 +227,25 @@ export default function TopologyCanvas() {
     let ny = d.oy + (e.clientY - d.sy) / s
     nx = Math.max(halfW, Math.min(960 - halfW, nx))
     ny = Math.max(40, Math.min(canvasH() - 62, ny))
-    setPosMap((m) => Object.assign({}, m, { [d.id]: { x: nx, y: ny } }))
+    d.pos = { x: nx, y: ny }
+    if (d.raf) return
+    d.raf = requestAnimationFrame(() => {
+      d.raf = 0
+      const p = d.pos
+      setPosMap((m) => (m[d.id] && m[d.id].x === p.x && m[d.id].y === p.y ? m : Object.assign({}, m, { [d.id]: p })))
+    })
   }
   const onPointerUp = () => {
     const d = dragRef.current
     dragRef.current = null
+    if (wrapRef.current) wrapRef.current.classList.remove('dragging')
     if (!d) return
+    if (d.raf) cancelAnimationFrame(d.raf)
     if (d.moved) {
+      const p = d.pos || posMap[d.id]
       lab.positions = lab.positions || {}
-      lab.positions[d.id] = posMap[d.id]
+      lab.positions[d.id] = p
+      setPosMap((m) => Object.assign({}, m, { [d.id]: p }))
       return
     }
     handleClick(d.id)
@@ -292,7 +303,7 @@ export default function TopologyCanvas() {
   placeLabels(portLabels)
 
   return (
-    <div ref={wrapRef} className="relative glass card3d rounded-2xl p-2">
+    <div ref={wrapRef} className="relative glass no-blur card3d rounded-2xl p-2">
       {cabling && (
         <div className="glass mx-2 mt-2 mb-1 rounded-lg px-3 py-2 text-[12px] text-[#e9dcff] flex items-center gap-2 flex-wrap">
           <span className="font-semibold">🔌 Tipo de cable:</span>
