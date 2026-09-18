@@ -1,6 +1,6 @@
 // Consola gráfica para equipos finales: simula la configuración de red de Windows (PC/servidor/laptop)
-// o el panel web de administración de una cámara IP, en vez de solo la CLI.
-import { useEffect, useState } from 'react'
+// o el panel web de administración de una cámara IP, con un Símbolo del sistema funcional.
+import { useEffect, useRef, useState } from 'react'
 import { useNetwork } from '../context/NetworkContext.jsx'
 import { validIp, parseMask, netOf, maskLen, isWireless } from '../lib/utils.js'
 import { pcUp } from '../lib/engine.js'
@@ -21,16 +21,19 @@ export default function EndpointConsole() {
   const [ip, setIp] = useState('')
   const [mask, setMask] = useState('')
   const [gw, setGw] = useState('')
-  const [pingTo, setPingTo] = useState('8.8.8.8')
+  const [cmd, setCmd] = useState('')
+  const cmdRef = useRef(null)
 
   useEffect(() => {
     if (d && d.pc) { setIp(d.pc.ip || ''); setMask(d.pc.mask || ''); setGw(d.pc.gw || '') }
   }, [active, d && d.pc && d.pc.ip, d && d.pc && d.pc.mask, d && d.pc && d.pc.gw])
+  useEffect(() => { if (cmdRef.current) cmdRef.current.focus() }, [active])
 
   if (!d || !d.pc) return null
   const isCam = d.type === 'camera'
   const up = pcUp(lab, active)
-  const out = (sessions && sessions[active] && sessions[active].out) ? sessions[active].out.slice(-7) : []
+  const out = (sessions && sessions[active] && sessions[active].out) ? sessions[active].out.slice(-9) : []
+  const submit = (e) => { e.preventDefault(); const c = cmd.trim(); if (!c) return; run(active, c); setCmd('') }
 
   const apply = () => {
     const m = parseMask(mask)
@@ -39,11 +42,9 @@ export default function EndpointConsole() {
     toast((isCam ? 'Configuración de la cámara' : 'Configuración de red') + ' aplicada.', 'ok')
   }
 
-  const accent = isCam ? 'cyan' : 'sky'
-
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto term-scroll">
-      <div data-tilt="5" className={'glass rounded-lg overflow-hidden shrink-0 ' + (isCam ? 'border-cyan-900' : 'border-sky-900')}>
+      <div className={'glass no-blur rounded-lg overflow-hidden shrink-0 ' + (isCam ? 'border-cyan-900' : 'border-sky-900')}>
         {/* Barra de ventana / navegador */}
         <div className={'flex items-center gap-2 px-3 py-1.5 border-b ' + (isCam ? 'border-cyan-900 bg-[#08131f]' : 'border-sky-900 bg-[#0c1a2e]')}>
           <span className="flex gap-1.5">
@@ -82,22 +83,25 @@ export default function EndpointConsole() {
         </div>
       </div>
 
-      {/* Consola/diagnóstico rápido (estilo símbolo del sistema o log del panel) */}
-      <div className="rounded-lg border border-sim-border bg-[#05070d] flex-1 min-h-[120px] flex flex-col">
+      {/* Símbolo del sistema / registro, con entrada de comandos funcional */}
+      <div className="rounded-lg border border-sim-border bg-[#05070d] flex-1 min-h-[150px] flex flex-col">
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-sim-border flex-wrap">
-          <span className="text-[11px] font-semibold text-sim-muted">{isCam ? 'Registro del dispositivo' : 'Símbolo del sistema'}</span>
+          <span className="text-[11.5px] font-semibold text-sim-muted">{isCam ? 'Símbolo del sistema / registro' : 'Símbolo del sistema'}</span>
           <button onClick={() => run(active, 'ipconfig')} className="rounded border border-sim-border bg-[#12213d] px-2 py-0.5 text-[11px] hover:brightness-125">ipconfig</button>
-          <span className="flex items-center gap-1 ml-auto">
-            <input value={pingTo} onChange={(e) => setPingTo(e.target.value)} spellCheck="false"
-              className="w-[130px] rounded border border-sim-border bg-[#0b1728] px-2 py-0.5 text-[11px] font-mono text-[#dbe7f8] outline-none focus:border-cyan-700" />
-            <button onClick={() => run(active, 'ping ' + pingTo)} className="rounded border border-sim-border bg-[#12213d] px-2 py-0.5 text-[11px] hover:brightness-125">ping</button>
-          </span>
+          <button onClick={() => run(active, 'help')} className="rounded border border-sim-border bg-[#12213d] px-2 py-0.5 text-[11px] hover:brightness-125">help</button>
+          <button onClick={() => run(active, 'cls')} className="rounded border border-sim-border bg-[#12213d] px-2 py-0.5 text-[11px] hover:brightness-125">cls</button>
         </div>
-        <div className="flex-1 overflow-y-auto term-scroll p-2.5 font-mono text-[11.5px] leading-[1.6] whitespace-pre-wrap break-words">
+        <div className="flex-1 overflow-y-auto term-scroll p-2.5 font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words">
           {out.length ? out.map((e, i) => (
             <div key={i} className={e.cls === 'err' ? 'text-red-400' : e.cls === 'ok' ? 'text-green-400' : e.cls === 'cmd' ? 'text-cyan-300' : e.cls === 'hdr' ? 'text-amber-300' : 'text-[#a9c1e0]'}>{e.t}</div>
-          )) : <span className="text-sim-muted">Sin salida todavía. Usa ipconfig o ping para diagnosticar.</span>}
+          )) : <span className="text-sim-muted">Escribe un comando abajo (por ejemplo ipconfig, ip &lt;ip&gt; &lt;máscara&gt; &lt;gw&gt; o ping 8.8.8.8) y pulsa Enter.</span>}
         </div>
+        <form onSubmit={submit} className="flex items-center gap-2 border-t border-sim-border px-2.5 py-1.5">
+          <span className="text-cyan-300 font-mono text-[12px] whitespace-nowrap">{isCam ? d.name.toLowerCase().replace(/\s+/g, '-') + ':~#' : 'C:\\Users\\' + d.name + '>'}</span>
+          <input ref={cmdRef} value={cmd} onChange={(e) => setCmd(e.target.value)} autoComplete="off" spellCheck="false" data-testid="endpoint-cmd"
+            placeholder="escribe un comando y presiona Enter…"
+            className="flex-1 bg-transparent outline-none text-[#eaf4ff] caret-cyan-400 font-mono text-[12.5px]" />
+        </form>
       </div>
     </div>
   )

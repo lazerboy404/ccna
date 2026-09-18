@@ -147,11 +147,19 @@ try {
   await page.waitForTimeout(80)
   const dragOnMoves = (await devg.getAttribute('transform')) !== trBefore
 
-  // Interfaz gráfica del PC
+  // Interfaz gráfica del PC + ejecutar un comando desde su Símbolo del sistema
   let pcGuiOK = false
+  let pcCmdOK = false
   await page.getByRole('button', { name: /PC-ADMIN/ }).first().click().catch(() => {})
-  await page.waitForTimeout(100)
+  await page.waitForTimeout(120)
   pcGuiOK = (await page.getByText('Dirección IP').count()) > 0
+  const endCmd = page.locator('[data-testid="endpoint-cmd"]')
+  if (await endCmd.count()) {
+    await endCmd.fill('ipconfig')
+    await endCmd.press('Enter')
+    await page.waitForTimeout(120)
+    pcCmdOK = (await page.getByText(/Dirección IPv4/).count()) > 0
+  }
   await page.screenshot({ path: path.join(shotsDir, 'endpoint-pc.png') })
 
   // Interfaz web de la cámara (busca un lab con CAM-)
@@ -177,6 +185,7 @@ try {
   console.log('Arrastrar desactivado no mueve: ' + (dragOffNoMove ? 'OK' : 'FALLA'))
   console.log('Arrastrar activado sí mueve: ' + (dragOnMoves ? 'OK' : 'FALLA'))
   console.log('Interfaz gráfica de PC: ' + (pcGuiOK ? 'OK' : 'FALLA'))
+  console.log('Comando en Símbolo del sistema del PC: ' + (pcCmdOK ? 'OK' : 'FALLA'))
   console.log('Interfaz web de cámara: ' + (camGuiOK ? 'OK' : 'no se encontró lab con cámara'))
   console.log('Errores de runtime: ' + errors.length)
   if (errors.length) console.log(errors.slice(0, 8).join('\n'))

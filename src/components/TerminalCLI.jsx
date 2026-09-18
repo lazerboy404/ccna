@@ -20,12 +20,19 @@ export default function TerminalCLI() {
   const { lab, active, sessions, setActive, run, tick } = useNetwork()
   const [val, setVal] = useState('')
   const [showCli, setShowCli] = useState(false)
+  const [big, setBig] = useState(false)
   const outRef = useRef(null)
   const inRef = useRef(null)
+  const containerRef = useRef(null)
   const sess = active ? sessions[active] : null
   const isEnd = !!(active && lab.devices[active] && isEndpoint(lab.devices[active]))
 
   useEffect(() => { setShowCli(false) }, [active])
+  // Al elegir un equipo, lleva la consola a la vista.
+  useEffect(() => {
+    if (!active || !containerRef.current) return
+    containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [active])
 
   useEffect(() => {
     const el = outRef.current
@@ -61,7 +68,7 @@ export default function TerminalCLI() {
   const prompt = active && lab.devices[active] ? promptOf(lab.devices[active], sess || cliS({ lab, sessions }, active)) : ''
 
   return (
-    <div className="glass rounded-2xl overflow-hidden">
+    <div ref={containerRef} className={'glass overflow-hidden ' + (big ? 'fixed inset-3 z-[80] flex flex-col rounded-2xl' : 'rounded-2xl')}>
       <div className="flex gap-1 px-3 pt-2.5 flex-wrap items-center">
         {termOrder(lab).map((id) => (
           <button key={id} onClick={() => setActive(id)}
@@ -78,9 +85,14 @@ export default function TerminalCLI() {
               {showCli ? '💻 Modo gráfico' : '⌨️ Ver CLI'}
             </button>
           )}
+          <button onClick={() => setBig((b) => !b)}
+            className="rounded-md border border-sim-border bg-[#12213d] px-2 py-0.5 font-semibold hover:brightness-125"
+            title={big ? 'Cerrar vista ampliada' : 'Ampliar la consola'}>
+            {big ? '✕ Cerrar' : '⛶ Ampliar'}
+          </button>
         </div>
       </div>
-      <div className="bg-[#050b14] border-t border-[#12314e] p-3 h-[clamp(210px,40vh,360px)] flex flex-col font-mono text-[13px]">
+      <div className={'bg-[#050b14] border-t border-[#12314e] p-3 flex flex-col font-mono text-[13.5px] ' + (big ? 'flex-1 min-h-0' : 'h-[clamp(260px,46vh,540px)]')}>
         {active ? (
           isEnd && !showCli ? (
             <EndpointConsole />
@@ -94,7 +106,7 @@ export default function TerminalCLI() {
               <div className="flex items-center gap-2 mt-2">
                 <span className="text-green-400 font-bold whitespace-nowrap">{prompt}</span>
                 <input ref={inRef} value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={onKeyDown}
-                  autoComplete="off" spellCheck="false"
+                  autoComplete="off" spellCheck="false" data-testid="cli-input"
                   className="flex-1 bg-transparent outline-none text-[#eaf4ff] caret-cyan-400 font-mono text-[13px]"
                   placeholder="escribe un comando y presiona Enter…" />
               </div>
